@@ -14,6 +14,7 @@ on:
       - '**.yml'
       - '.github/workflows/docker-build-on-commit.yml'
       - '.dockerignore'
+  workflow_dispatch:
 
 jobs:
   build:
