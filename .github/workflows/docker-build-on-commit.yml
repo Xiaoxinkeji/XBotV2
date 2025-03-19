@@ -57,7 +57,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/xybotv2:latest
-            ${{ vars.DOCKERHUB_USERNAME }}/xybotv2:${{ env.GIT_SHA }}
-          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/xybotv2:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/xbotv2:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/xbotv2:${{ env.GIT_SHA }}
+          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/xbotv2:latest
           cache-to: type=inline,mode=max
