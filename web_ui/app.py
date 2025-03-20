@@ -19,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from datetime import datetime
 import psutil
+import subprocess
 
 # 设置日志
 logging.basicConfig(
@@ -124,10 +125,17 @@ async def login_page(request: Request):
 
 @app.on_event("startup")
 async def startup_event():
-    """应用启动时执行"""
-    logger.info("Web管理界面启动中")
-    logger.info(f"API文档地址: http://localhost:8080/api/docs")
-    
+    """应用启动时执行初始化任务"""
+    # 检查资源文件
+    resource_script = os.path.join(os.path.dirname(__file__), "fix_resources.sh")
+    if os.path.exists(resource_script):
+        try:
+            logger.info("正在检查前端资源文件...")
+            subprocess.run(["bash", resource_script], check=True)
+            logger.info("前端资源检查完成")
+        except subprocess.SubprocessError as e:
+            logger.error(f"资源修复脚本执行失败: {str(e)}")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭时执行"""

@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -49,22 +49,19 @@ RUN pip install tomli==2.0.1 tomli_w==1.0.0 redis==5.0.1 python-dotenv==1.0.0
 RUN pip install -r requirements.txt || echo "部分依赖安装失败，继续构建"
 
 # 复制应用代码
-COPY . .
+COPY . /app/
 
-# 启动脚本
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# 准备资源脚本
+COPY web_ui/fix_resources.sh /app/web_ui/fix_resources.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /app/web_ui/fix_resources.sh /entrypoint.sh
+
+# 设置入口点
+ENTRYPOINT ["/entrypoint.sh"]
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 8000
 
-# 创建vendor目录并下载前端依赖
-RUN mkdir -p /app/web_ui/static/vendor && \
-    curl -L -o /app/web_ui/static/vendor/vue.min.js https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.min.js && \
-    curl -L -o /app/web_ui/static/vendor/element-plus.min.css https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.min.css && \
-    curl -L -o /app/web_ui/static/vendor/element-plus.min.js https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.full.min.js && \
-    curl -L -o /app/web_ui/static/vendor/axios.min.js https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js && \
-    chmod -R 755 /app/web_ui/static/vendor
-
-CMD ["./entrypoint.sh"]
+# 启动命令
+CMD ["uvicorn", "web_ui.app:app", "--host", "0.0.0.0", "--port", "8000"]
 

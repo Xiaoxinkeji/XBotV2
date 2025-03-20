@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <!-- 使用本地资源文件 -->
+    <!-- 首先加载资源加载器 -->
+    <script src="/static/js/resource-loader.js"></script>
+    <!-- 样式表 -->
     <link rel="stylesheet" href="/static/vendor/element-plus.min.css">
-    <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <link rel="stylesheet" href="/static/css/icons.css">
@@ -91,184 +92,94 @@
 </head>
 <body>
     <div id="app">
-        <!-- 加载动画 -->
         <div class="loading-container">
-            <img src="/static/img/logo.png" alt="XYBot Logo" class="loading-logo">
-            <div class="loading-text">加载中，请稍候...</div>
+            <img src="/static/img/logo.png" class="loading-logo" alt="XYBot Logo">
+            <div class="loading-text">正在加载资源...</div>
         </div>
     </div>
-    
-    <!-- 使用本地脚本或备用资源 -->
+
+    <!-- 应用程序入口点 -->
     <script>
-        // 资源加载错误处理
-        function handleScriptError(scriptName) {
-            console.error(`${scriptName}加载失败，尝试备用方案`);
-            document.querySelector('.loading-text').textContent = `${scriptName}加载失败，尝试备用方案...`;
-            return true; // 允许继续加载其他资源
-        }
-    </script>
-    
-    <!-- 先尝试加载本地资源 -->
-    <script src="/static/vendor/vue.global.min.js" onerror="handleScriptError('Vue')"></script>
-    <script src="/static/vendor/element-plus.full.min.js" onerror="handleScriptError('ElementPlus')"></script>
-    <script src="/static/vendor/axios.min.js" onerror="handleScriptError('Axios')"></script>
-    <script src="/static/vendor/echarts.min.js" onerror="handleScriptError('ECharts')"></script>
-    
-    <!-- 检查Vue是否加载成功，如果失败则加载极简版 -->
-    <script>
-        if (typeof Vue === 'undefined') {
-            console.log('Vue加载失败，使用极简版');
-            document.write('<script src="/static/vendor/minimal-vue.js"><\/script>');
-        }
-    </script>
-    
-    <!-- 检查依赖加载状态并显示简化版 -->
-    <script>
-        // 资源加载处理
-        document.addEventListener('DOMContentLoaded', function() {
-            const loader = document.createElement('div');
-            loader.className = 'loading-container';
-            loader.innerHTML = `
-                <img src="/static/img/logo.png" class="loading-logo" alt="XYBot Logo">
-                <div class="loading-text">正在加载资源...</div>
-            `;
-            document.body.appendChild(loader);
-            
-            // 加载必要的库
-            const requiredLibs = [
-                { name: 'Vue', path: '/static/vendor/vue.global.min.js', fallback: '/static/vendor/minimal-vue.js' },
-                { name: 'ElementPlus', path: '/static/vendor/element-plus.full.min.js' },
-                { name: 'axios', path: '/static/vendor/axios.min.js' },
-                { name: 'echarts', path: '/static/vendor/echarts.min.js', fallback: '/static/js/fallback-charts.js' }
-            ];
-            
-            // 顺序加载库
-            loadLibsSequentially(requiredLibs, 0, function(success, failed) {
-                if (failed.length > 0) {
-                    console.warn('以下库加载失败，将使用备用方案:', failed.join(', '));
-                }
-                
-                // 移除加载指示器
-                document.body.removeChild(loader);
-                
-                // 继续加载应用组件
-                loadAppComponents();
-            });
-        });
-        
-        // 顺序加载库函数
-        function loadLibsSequentially(libs, index, callback, successList = [], failedList = []) {
-            if (index >= libs.length) {
-                return callback(successList, failedList);
-            }
-            
-            const lib = libs[index];
-            
-            // 检查库是否已加载
-            if (window[lib.name]) {
-                console.log(`${lib.name} 已加载`);
-                successList.push(lib.name);
-                return loadLibsSequentially(libs, index + 1, callback, successList, failedList);
-            }
-            
-            // 加载主要版本
-            loadScript(lib.path, function(success) {
-                if (success) {
-                    console.log(`${lib.name} 加载成功`);
-                    successList.push(lib.name);
-                    loadLibsSequentially(libs, index + 1, callback, successList, failedList);
-                } else {
-                    console.warn(`${lib.name} 加载失败，尝试备用方案...`);
-                    
-                    // 如果有备用方案，尝试加载
-                    if (lib.fallback) {
-                        loadScript(lib.fallback, function(fallbackSuccess) {
-                            if (fallbackSuccess) {
-                                console.log(`${lib.name} 备用方案加载成功`);
-                                successList.push(lib.name + '(备用)');
-                            } else {
-                                console.error(`${lib.name} 及其备用方案均加载失败`);
-                                failedList.push(lib.name);
-                            }
-                            loadLibsSequentially(libs, index + 1, callback, successList, failedList);
-                        });
-                    } else {
-                        failedList.push(lib.name);
-                        loadLibsSequentially(libs, index + 1, callback, successList, failedList);
+        // 等待资源加载器准备就绪
+        function initializeApp() {
+            if (typeof Vue !== 'undefined') {
+                console.log('Vue 已加载，初始化应用');
+                const app = Vue.createApp({
+                    data() {
+                        return {
+                            activeComponent: 'dashboard'
+                        }
+                    },
+                    methods: {
+                        switchComponent(component) {
+                            this.activeComponent = component;
+                        }
                     }
+                });
+                
+                // 注册组件
+                if (typeof ComponentDashboard !== 'undefined') {
+                    app.component('dashboard', ComponentDashboard);
                 }
-            });
-        }
-        
-        // 加载单个脚本
-        function loadScript(src, callback) {
-            const script = document.createElement('script');
-            script.src = src;
-            
-            script.onload = function() {
-                callback(true);
-            };
-            
-            script.onerror = function() {
-                callback(false);
-            };
-            
-            document.head.appendChild(script);
-        }
-        
-        // 加载应用组件
-        function loadAppComponents() {
-            const components = [
-                '/static/js/dashboard.js',
-                '/static/js/plugins.js',
-                '/static/js/users.js',
-                '/static/js/messages.js',
-                '/static/js/status.js',
-                '/static/js/main.js'
-            ];
-            
-            // 创建简单Vue应用容器
-            const appContainer = document.getElementById('app');
-            appContainer.innerHTML = `
-                <div id="fallback-app" style="display: none;">
-                    <header class="app-header">
-                        <h1>XYBot管理面板 (兼容模式)</h1>
-                    </header>
-                    <main class="fallback-main">
-                        <div class="status-card">
-                            <h2>系统状态</h2>
-                            <p>前端资源加载不完整，请检查网络连接或联系管理员。</p>
-                            <button onclick="window.location.reload()">刷新页面</button>
-                            <button onclick="window.location.href='/wechat-login'">微信登录</button>
-                            <button onclick="window.location.href='/simple'">简易版</button>
+                if (typeof ComponentPlugins !== 'undefined') {
+                    app.component('plugins', ComponentPlugins);
+                }
+                if (typeof ComponentUsers !== 'undefined') {
+                    app.component('users', ComponentUsers);
+                }
+                if (typeof ComponentMessages !== 'undefined') {
+                    app.component('messages', ComponentMessages);
+                }
+                if (typeof ComponentStatus !== 'undefined') {
+                    app.component('status', ComponentStatus);
+                }
+                
+                // 使用ElementPlus (如果可用)
+                if (typeof ElementPlus !== 'undefined') {
+                    app.use(ElementPlus);
+                }
+                
+                // 挂载应用
+                app.mount('#app');
+            } else {
+                console.error('Vue 未加载，尝试备用初始化');
+                const appContainer = document.getElementById('app');
+                appContainer.innerHTML = `
+                    <div style="max-width:800px;margin:40px auto;padding:20px;text-align:center;">
+                        <h2>XYBot管理面板</h2>
+                        <p>前端资源加载失败，请尝试以下选项：</p>
+                        <div style="margin-top:20px;">
+                            <a href="/simple" style="display:inline-block;margin:10px;padding:10px 20px;background:#409EFF;color:white;text-decoration:none;border-radius:4px;">
+                                使用简易版
+                            </a>
+                            <a href="/offline" style="display:inline-block;margin:10px;padding:10px 20px;background:#67C23A;color:white;text-decoration:none;border-radius:4px;">
+                                运行诊断
+                            </a>
                         </div>
-                    </main>
-                </div>
-            `;
-            
-            // 依次加载组件
-            loadComponentsSequentially(components, 0, function(loadedCount) {
-                if (loadedCount < components.length) {
-                    console.warn(`部分组件加载失败 (${loadedCount}/${components.length})`);
-                    document.getElementById('fallback-app').style.display = 'block';
-                }
-            });
+                    </div>
+                `;
+            }
         }
         
-        // 顺序加载组件
-        function loadComponentsSequentially(components, index, callback, loadedCount = 0) {
-            if (index >= components.length) {
-                return callback(loadedCount);
+        // 检查Vue是否已加载，如果加载则初始化应用
+        function checkAndInitialize() {
+            if (typeof Vue !== 'undefined') {
+                initializeApp();
+            } else {
+                // 等待并再次检查
+                setTimeout(checkAndInitialize, 100);
             }
-            
-            loadScript(components[index], function(success) {
-                if (success) {
-                    loadedCount++;
-                }
-                loadComponentsSequentially(components, index + 1, callback, loadedCount);
-            });
         }
+        
+        // 页面加载完成后启动检查
+        window.addEventListener('load', checkAndInitialize);
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.1.0"></script>
+    
+    <!-- 组件脚本 -->
+    <script src="/static/js/plugins.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/messages.js"></script>
+    <script src="/static/js/status.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html> 
