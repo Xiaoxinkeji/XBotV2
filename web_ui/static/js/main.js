@@ -1,3 +1,18 @@
+// 启用Vue开发工具
+window.__VUE_DEVTOOLS_GLOBAL_HOOK__ = true;
+
+// 获取Element Plus组件库
+const { ElMessage, ElMessageBox } = ElementPlus;
+
+// 创建全局自定义指令
+const directives = {
+    focus: {
+        mounted(el) {
+            el.focus();
+        }
+    }
+};
+
 // 组件定义
 const ComponentDashboard = {
     template: `
@@ -102,39 +117,66 @@ const ComponentPlugins = {
 
 // 其他组件...
 
-// 主应用
+// 创建应用实例
 const app = Vue.createApp({
-    data() {
-        return {
-            activeMenu: localStorage.getItem('activeMenu') || 'dashboard',
-            isMobile: window.innerWidth < 768,
-            sidebarCollapsed: false
-        }
-    },
-    mounted() {
-        window.addEventListener('resize', this.handleResize);
-        this.handleResize();
-    },
-    beforeUnmount() {
-        window.removeEventListener('resize', this.handleResize);
-    },
-    methods: {
-        handleResize() {
-            this.isMobile = window.innerWidth < 768;
-            if (this.isMobile) {
-                this.sidebarCollapsed = true;
+    setup() {
+        // 初始化应用数据
+        const activeMenu = Vue.ref(localStorage.getItem('activeMenu') || 'dashboard');
+        const isMobile = Vue.ref(window.innerWidth < 768);
+        const sidebarCollapsed = Vue.ref(false);
+        
+        // 监听窗口尺寸变化
+        Vue.onMounted(() => {
+            window.addEventListener('resize', handleResize);
+            handleResize();
+            
+            // 检查登录状态
+            checkLoginStatus();
+            
+            console.log("应用已挂载完成");
+        });
+        
+        Vue.onUnmounted(() => {
+            window.removeEventListener('resize', handleResize);
+        });
+        
+        // 方法定义
+        function handleResize() {
+            isMobile.value = window.innerWidth < 768;
+            if (isMobile.value) {
+                sidebarCollapsed.value = true;
             }
-        },
-        toggleSidebar() {
-            this.sidebarCollapsed = !this.sidebarCollapsed;
-        },
-        setActiveMenu(menu) {
-            this.activeMenu = menu;
+        }
+        
+        function toggleSidebar() {
+            sidebarCollapsed.value = !sidebarCollapsed.value;
+        }
+        
+        function setActiveMenu(menu) {
+            activeMenu.value = menu;
             localStorage.setItem('activeMenu', menu);
-            if (this.isMobile) {
-                this.sidebarCollapsed = true;
+            if (isMobile.value) {
+                sidebarCollapsed.value = true;
             }
         }
+        
+        function checkLoginStatus() {
+            axios.get('/api/auth/check')
+                .catch(error => {
+                    if (error.response && error.response.status === 401) {
+                        window.location.href = '/login';
+                    }
+                });
+        }
+        
+        // 返回响应式数据和方法
+        return {
+            activeMenu,
+            isMobile,
+            sidebarCollapsed,
+            toggleSidebar,
+            setActiveMenu
+        };
     },
     template: `
         <div class="app-container" :class="{'mobile': isMobile, 'sidebar-collapsed': sidebarCollapsed}">

@@ -1,0 +1,70 @@
+/* Element Plus图标兼容性样式 */
+.el-icon-monitor:before {
+    content: "\e78c";
+    font-family: "element-icons";
+}
+
+.el-icon-connection:before {
+    content: "\e7da";
+    font-family: "element-icons";
+}
+
+.el-icon-user:before {
+    content: "\e7ae";
+    font-family: "element-icons";
+}
+
+.el-icon-chat-line-square:before {
+    content: "\e869";
+    font-family: "element-icons";
+}
+
+.el-icon-odometer:before {
+    content: "\e7c2";
+    font-family: "element-icons";
+}
+
+.el-icon-s-unfold:before {
+    content: "\e7b1";
+    font-family: "element-icons";
+}
+
+.el-icon-s-fold:before {
+    content: "\e7b2";
+    font-family: "element-icons";
+}
+
+.el-icon-menu:before {
+    content: "\e775";
+    font-family: "element-icons";
+}
+
+.el-icon-success:before {
+    content: "\e79c";
+    font-family: "element-icons";
+}
+
+.el-icon-error:before {
+    content: "\e79d";
+    font-family: "element-icons";
+}
+
+.el-icon-warning:before {
+    content: "\e79e";
+    font-family: "element-icons";
+}
+
+.el-icon-question:before {
+    content: "\e7a3";
+    font-family: "element-icons";
+}
+
+.el-icon-info:before {
+    content: "\e7a1";
+    font-family: "element-icons";
+}
+
+.el-icon-cpu:before {
+    content: "\e7cb";
+    font-family: "element-icons";
+} 

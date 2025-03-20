@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XYBot - 系统诊断</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #409EFF;
+            border-bottom: 2px solid #EBEEF5;
+            padding-bottom: 10px;
+        }
+        .check-item {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #EBEEF5;
+            padding-bottom: 10px;
+        }
+        .status {
+            font-weight: bold;
+        }
+        .success {
+            color: #67C23A;
+        }
+        .error {
+            color: #F56C6C;
+        }
+        .warning {
+            color: #E6A23C;
+        }
+        button {
+            background-color: #409EFF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #66b1ff;
+        }
+        code {
+            display: block;
+            padding: 10px;
+            background-color: #f7f7f7;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>XYBot系统诊断</h1>
+    
+    <div id="diagnostic-results">
+        <div class="check-item">
+            <h3>Vue加载状态</h3>
+            <div class="status" id="vue-status">检查中...</div>
+        </div>
+        
+        <div class="check-item">
+            <h3>Element Plus加载状态</h3>
+            <div class="status" id="element-status">检查中...</div>
+        </div>
+        
+        <div class="check-item">
+            <h3>Axios加载状态</h3>
+            <div class="status" id="axios-status">检查中...</div>
+        </div>
+        
+        <div class="check-item">
+            <h3>ECharts加载状态</h3>
+            <div class="status" id="echarts-status">检查中...</div>
+        </div>
+        
+        <div class="check-item">
+            <h3>自定义组件加载状态</h3>
+            <div class="status" id="components-status">检查中...</div>
+        </div>
+        
+        <div class="check-item">
+            <h3>API连接状态</h3>
+            <div class="status" id="api-status">检查中...</div>
+            <div id="api-details"></div>
+        </div>
+    </div>
+    
+    <button id="run-checks">重新检查</button>
+    <button id="go-home">返回首页</button>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', runDiagnostics);
+        document.getElementById('run-checks').addEventListener('click', runDiagnostics);
+        document.getElementById('go-home').addEventListener('click', () => window.location.href = '/');
+        
+        function runDiagnostics() {
+            // 检查Vue
+            checkVue();
+            
+            // 检查Element Plus
+            checkElementPlus();
+            
+            // 检查Axios
+            checkAxios();
+            
+            // 检查ECharts
+            checkECharts();
+            
+            // 检查自定义组件
+            checkComponents();
+            
+            // 检查API连接
+            checkApiConnection();
+        }
+        
+        function checkVue() {
+            const status = document.getElementById('vue-status');
+            
+            try {
+                if (window.Vue) {
+                    status.textContent = `成功 (版本: ${Vue.version})`;
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '失败: Vue未定义';
+                    status.className = 'status error';
+                }
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+        
+        function checkElementPlus() {
+            const status = document.getElementById('element-status');
+            
+            try {
+                if (window.ElementPlus) {
+                    status.textContent = '成功';
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '失败: ElementPlus未定义';
+                    status.className = 'status error';
+                }
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+        
+        function checkAxios() {
+            const status = document.getElementById('axios-status');
+            
+            try {
+                if (window.axios) {
+                    status.textContent = `成功 (版本: ${axios.VERSION || '未知'})`;
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '失败: Axios未定义';
+                    status.className = 'status error';
+                }
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+        
+        function checkECharts() {
+            const status = document.getElementById('echarts-status');
+            
+            try {
+                if (window.echarts) {
+                    status.textContent = `成功 (版本: ${echarts.version || '未知'})`;
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '失败: ECharts未定义';
+                    status.className = 'status error';
+                }
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+        
+        function checkComponents() {
+            const status = document.getElementById('components-status');
+            const components = [
+                'ComponentDashboard', 
+                'ComponentPlugins', 
+                'ComponentUsers', 
+                'ComponentMessages', 
+                'ComponentStatus'
+            ];
+            
+            try {
+                const missing = components.filter(comp => !window[comp]);
+                
+                if (missing.length === 0) {
+                    status.textContent = '所有组件已加载';
+                    status.className = 'status success';
+                } else {
+                    status.textContent = `失败: 缺少组件: ${missing.join(', ')}`;
+                    status.className = 'status error';
+                }
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+        
+        function checkApiConnection() {
+            const status = document.getElementById('api-status');
+            const details = document.getElementById('api-details');
+            
+            status.textContent = '检查中...';
+            status.className = 'status';
+            details.innerHTML = '';
+            
+            try {
+                if (!window.axios) {
+                    status.textContent = '跳过: Axios未加载';
+                    status.className = 'status warning';
+                    return;
+                }
+                
+                axios.get('/api/health')
+                    .then(response => {
+                        status.textContent = '成功: API可访问';
+                        status.className = 'status success';
+                        
+                        const data = response.data;
+                        details.innerHTML = `<code>${JSON.stringify(data, null, 2)}</code>`;
+                    })
+                    .catch(error => {
+                        status.textContent = '失败: API请求错误';
+                        status.className = 'status error';
+                        
+                        if (error.response) {
+                            details.innerHTML = `<div>状态码: ${error.response.status}</div>
+                                               <code>${JSON.stringify(error.response.data, null, 2)}</code>`;
+                        } else {
+                            details.textContent = error.message;
+                        }
+                    });
+            } catch (e) {
+                status.textContent = `错误: ${e.message}`;
+                status.className = 'status error';
+            }
+        }
+    </script>
+</body>
+</html> 

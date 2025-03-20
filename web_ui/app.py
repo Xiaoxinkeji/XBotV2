@@ -217,4 +217,11 @@ async def server_error_exception_handler(request: Request, exc):
         "500.html",
         {"request": request, "error": str(exc)},
         status_code=500
+    )
+
+@app.get("/diagnostic")
+async def diagnostic_page(request: Request):
+    return templates.TemplateResponse(
+        "diagnostic.html",
+        {"request": request}
     ) 
