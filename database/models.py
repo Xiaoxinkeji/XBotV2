@@ -1,6 +1,10 @@
 from sqlalchemy import Column, Integer, Text, DateTime, String, ForeignKey, Index
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
+
+# 创建基本模型类
+Base = declarative_base()
 
 class Message(Base):
     __tablename__ = "messages"
