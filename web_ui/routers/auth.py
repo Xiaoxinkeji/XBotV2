@@ -7,7 +7,7 @@ import secrets
 import hashlib
 import json
 from datetime import datetime, timedelta
-from ..utils import api_response, error_response
+from web_ui.utils import api_response, error_response
 
 router = APIRouter()
 
