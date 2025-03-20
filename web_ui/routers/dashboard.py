@@ -4,7 +4,7 @@ from sqlalchemy import select, func, desc
 from database.models import User, Message, GroupInfo, Plugin, PluginCall
 from database.session import get_session
 from datetime import datetime, timedelta
-import psutil
+from web_ui.utils.system_utils import psutil, HAS_PSUTIL
 import platform
 import os
 

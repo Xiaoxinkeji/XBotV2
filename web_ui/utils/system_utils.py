@@ -46,6 +46,15 @@ except ImportError:
         @staticmethod
         def cpu_count():
             return 1
+        
+        @staticmethod
+        def Process(pid):
+            class MockProcess:
+                @staticmethod
+                def create_time():
+                    import time
+                    return time.time() - 3600  # 假设进程已运行1小时
+            return MockProcess()
     
     # 替换psutil
     psutil = PsutilMock()
