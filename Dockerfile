@@ -57,5 +57,13 @@ RUN chmod +x entrypoint.sh
 # 暴露端口
 EXPOSE 8080
 
+# 创建vendor目录并下载前端依赖
+RUN mkdir -p /app/web_ui/static/vendor && \
+    curl -L -o /app/web_ui/static/vendor/vue.min.js https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.min.js && \
+    curl -L -o /app/web_ui/static/vendor/element-plus.min.css https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.min.css && \
+    curl -L -o /app/web_ui/static/vendor/element-plus.min.js https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.full.min.js && \
+    curl -L -o /app/web_ui/static/vendor/axios.min.js https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js && \
+    chmod -R 755 /app/web_ui/static/vendor
+
 CMD ["./entrypoint.sh"]
 
