@@ -21,6 +21,11 @@ from datetime import datetime
 import psutil
 import subprocess
 
+# 导入新增的中间件和工具
+from .middlewares.wechat_monitor import WechatMonitorMiddleware
+from .utils.wechat_utils import init_wechat_connection, check_wechat_connection
+from .utils.service_recovery import start_wechat_service
+
 # 设置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -50,6 +55,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加微信监控中间件
+app.add_middleware(WechatMonitorMiddleware)
 
 # 静态文件
 app.mount(
@@ -135,6 +143,30 @@ async def startup_event():
             logger.info("前端资源检查完成")
         except subprocess.SubprocessError as e:
             logger.error(f"资源修复脚本执行失败: {str(e)}")
+    
+    # 初始化微信连接
+    try:
+        logger.info("正在初始化微信API连接...")
+        is_connected = await check_wechat_connection()
+        
+        if is_connected:
+            logger.info("微信API连接成功")
+        else:
+            logger.warning("微信API连接失败，尝试启动服务...")
+            service_started = await start_wechat_service()
+            
+            if service_started:
+                logger.info("微信API服务启动成功")
+                # 再次检查连接
+                is_connected = await check_wechat_connection()
+                if is_connected:
+                    logger.info("微信API现在已连接")
+                else:
+                    logger.warning("微信API服务已启动但连接仍失败，请检查配置")
+            else:
+                logger.error("微信API服务启动失败，请手动检查")
+    except Exception as e:
+        logger.error(f"初始化微信API连接失败: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():

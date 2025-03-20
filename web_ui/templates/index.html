@@ -181,5 +181,18 @@
     <script src="/static/js/messages.js"></script>
     <script src="/static/js/status.js"></script>
     <script src="/static/js/main.js"></script>
+
+    <!-- 在适当位置添加重连按钮 -->
+    <div class="status-item">
+        <span class="status-label">微信API:</span>
+        <span id="wechat-status" class="status-value status-unknown">检查中...</span>
+        <button id="wechat-reconnect-btn" style="display:none;margin-left:10px;" 
+                class="el-button el-button--small el-button--primary">
+            重新连接
+        </button>
+    </div>
+
+    <!-- 添加新的JS脚本 -->
+    <script src="/static/js/wechat-actions.js"></script>
 </body>
 </html> 

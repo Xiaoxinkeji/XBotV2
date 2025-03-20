@@ -1,10 +1,16 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from WechatAPI import WechatAPIClient
 import base64
 from io import BytesIO
 import time
 import logging
 import asyncio
+from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional
+
+# 假设这些是已存在的导入
+from ..dependencies import get_current_user
+from ..utils.service_recovery import restart_wechat_service
 
 router = APIRouter()
 logger = logging.getLogger("web_ui.wechat")
@@ -181,4 +187,60 @@ async def logout_wechat():
     
     except Exception as e:
         logger.error(f"退出微信登录失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reconnect")
+async def reconnect_wechat_service(
+    background_tasks: BackgroundTasks,
+    current_user: Dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    尝试重新连接微信服务
+    """
+    try:
+        # 在后台任务中执行服务重启，避免阻塞API响应
+        background_tasks.add_task(restart_wechat_service)
+        
+        logger.info(f"用户 {current_user.get('username', 'unknown')} 请求重启微信服务")
+        
+        return {
+            "code": 200,
+            "message": "微信服务重连请求已接受，正在处理...",
+            "data": {
+                "task_status": "running",
+                "estimated_time": "约30秒"
+            }
+        }
+    except Exception as e:
+        logger.error(f"请求重连微信服务时出错: {str(e)}")
+        return {
+            "code": 500,
+            "message": f"请求微信服务重连失败: {str(e)}",
+            "data": None
+        }
+
+@router.get("/connection-status")
+async def get_wechat_connection_status(
+    current_user: Dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    获取微信API连接详细状态
+    """
+    from ..utils.wechat_utils import get_wechat_status
+    
+    try:
+        status_data = await get_wechat_status()
+        
+        return {
+            "code": 200,
+            "message": "获取微信连接状态成功",
+            "data": status_data
+        }
+    except Exception as e:
+        logger.error(f"获取微信连接状态时出错: {str(e)}")
+        return {
+            "code": 500, 
+            "message": f"获取微信连接状态失败: {str(e)}",
+            "data": None
+        } 
