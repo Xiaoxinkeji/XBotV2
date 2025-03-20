@@ -13,7 +13,6 @@ pydub~=0.25.1
 qrcode~=8.0
 moviepy~=2.1.2
 pysilk-mod~=1.6.4
-xywechatpad-binary==1.1.0
 pymediainfo~=7.0.1
 matplotlib~=3.10.0
 numpy~=1.26.4
@@ -40,3 +39,6 @@ psutil>=5.9.5
 pysilk>=0.5
 pydub>=0.25.1
 qrcode>=7.4.2
+
+# 微信API依赖
+# xywechatpad-binary==1.1.0  # 自定义包，需要单独安装

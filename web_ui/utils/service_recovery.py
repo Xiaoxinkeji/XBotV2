@@ -29,9 +29,16 @@ async def start_wechat_service() -> bool:
         from WechatAPI import WechatAPIServer
         
         logger.info("正在启动微信API服务...")
-        # 创建并启动服务器实例
+        # 创建服务器实例
         server = WechatAPIServer()
-        server.start(port=WECHAT_API_PORT)
+        
+        # 检查服务器是否可用(依赖是否已安装)
+        if not getattr(server, 'available', False):
+            logger.error("无法启动微信API服务: xywechatpad-binary 依赖缺失")
+            return False
+            
+        # 启动服务
+        result = server.start(port=WECHAT_API_PORT)
         
         # 等待服务器启动
         for _ in range(5):  # 最多等待5秒
