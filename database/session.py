@@ -76,6 +76,8 @@ def get_sync_session():
 # 数据库初始化函数
 async def init_db():
     """初始化数据库"""
+    global engine, async_session_factory  # 添加global声明，使函数内可以修改全局变量
+    
     # 导入模型类以确保它们被注册
     from database.models import Base
     

@@ -215,10 +215,15 @@ const app = Vue.createApp({
 
 // 注册组件
 app.component('component-dashboard', ComponentDashboard);
+console.log("仪表盘组件已注册");
 app.component('component-plugins', ComponentPlugins);
+console.log("插件组件已注册");
 app.component('component-users', ComponentUsers);
+console.log("用户组件已注册");
 app.component('component-messages', ComponentMessages);
+console.log("消息组件已注册");
 app.component('component-status', ComponentStatus);
+console.log("状态组件已注册");
 
 // 挂载应用
 app.use(ElementPlus);
@@ -233,8 +238,37 @@ app.provide('logOut', function() {
         });
 });
 
+// 改进API错误处理
+axios.interceptors.response.use(
+    response => {
+        console.log(`API请求成功: ${response.config.url}`);
+        return response;
+    },
+    error => {
+        console.error(`API请求失败: ${error.config?.url}`, error);
+        
+        if (error.response) {
+            // 如果是401错误，重定向到登录页
+            if (error.response.status === 401) {
+                console.log("用户未授权，重定向到登录页");
+                window.location.href = '/login';
+                return Promise.reject(error);
+            }
+            
+            // 显示后端返回的错误信息
+            const errorMsg = error.response.data?.message || '请求失败';
+            ElementPlus.ElMessage.error(errorMsg);
+        } else {
+            // 网络错误等
+            ElementPlus.ElMessage.error('网络连接失败，请检查网络设置');
+        }
+        return Promise.reject(error);
+    }
+);
+
 // 在挂载前检查登录状态
-app.mount('#app');
+const mountedApp = app.mount('#app');
+console.log("Vue应用已挂载", mountedApp);
 
 // 检查登录状态
 axios.get('/api/auth/check')
@@ -274,4 +308,43 @@ if (window.innerWidth < 768) {
     document.removeEventListener('touchstart', handleTouchStart);
     document.removeEventListener('touchend', handleTouchEnd);
   };
-} 
+}
+
+// 添加全局错误处理
+app.config.errorHandler = (err, vm, info) => {
+    console.error("Vue错误:", err);
+    console.error("组件:", vm);
+    console.error("信息:", info);
+};
+
+console.log("主JS文件已加载");
+
+// 检查各组件是否正确定义
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM已加载完成，检查组件状态");
+    
+    // 检查所有需要的组件
+    const components = [
+        { name: 'ComponentDashboard', obj: window.ComponentDashboard },
+        { name: 'ComponentPlugins', obj: window.ComponentPlugins },
+        { name: 'ComponentUsers', obj: window.ComponentUsers },
+        { name: 'ComponentMessages', obj: window.ComponentMessages },
+        { name: 'ComponentStatus', obj: window.ComponentStatus }
+    ];
+    
+    let allComponentsLoaded = true;
+    components.forEach(comp => {
+        if (!comp.obj) {
+            console.error(`${comp.name} 组件未定义或加载失败`);
+            allComponentsLoaded = false;
+        } else {
+            console.log(`${comp.name} 组件已正确加载`);
+        }
+    });
+    
+    if (!allComponentsLoaded) {
+        console.error("有组件未正确加载，页面可能无法正常显示");
+    } else {
+        console.log("所有组件加载成功");
+    }
+}); 
