@@ -4,81 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <!-- 引入Element Plus样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="/static/css/main.css">
+    <!-- 图标和Favicon -->
+    <link rel="shortcut icon" href="/static/img/logo.png">
+    <style>
+        /* 加载动画样式 */
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+        .loading-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            animation: pulse 1.5s infinite alternate;
+        }
+        .loading-text {
+            font-size: 18px;
+            color: #409EFF;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
 </head>
 <body>
     <div id="app">
-        <el-container>
-            <el-aside width="200px">
-                <el-menu default-active="1" class="el-menu-vertical">
-                    <div class="logo-container">
-                        <img src="/static/img/logo.png" alt="XYBot" class="logo">
-                        <h2>XYBot管理面板</h2>
-                    </div>
-                    <el-menu-item index="1">
-                        <el-icon><i-ep-monitor /></el-icon>
-                        <span>控制面板</span>
-                    </el-menu-item>
-                    <el-menu-item index="2">
-                        <el-icon><i-ep-connection /></el-icon>
-                        <span>插件管理</span>
-                    </el-menu-item>
-                    <el-menu-item index="3">
-                        <el-icon><i-ep-user /></el-icon>
-                        <span>用户管理</span>
-                    </el-menu-item>
-                    <el-menu-item index="4">
-                        <el-icon><i-ep-chat-dot-round /></el-icon>
-                        <span>消息记录</span>
-                    </el-menu-item>
-                    <el-menu-item index="5">
-                        <el-icon><i-ep-data-analysis /></el-icon>
-                        <span>数据统计</span>
-                    </el-menu-item>
-                    <el-menu-item index="6">
-                        <el-icon><i-ep-setting /></el-icon>
-                        <span>系统设置</span>
-                    </el-menu-item>
-                </el-menu>
-            </el-aside>
-            
-            <el-container>
-                <el-header>
-                    <div class="header-right">
-                        <el-dropdown>
-                            <span class="el-dropdown-link">
-                                管理员 <el-icon><i-ep-arrow-down /></el-icon>
-                            </span>
-                            <template #dropdown>
-                                <el-dropdown-menu>
-                                    <el-dropdown-item>修改密码</el-dropdown-item>
-                                    <el-dropdown-item>退出登录</el-dropdown-item>
-                                </el-dropdown-menu>
-                            </template>
-                        </el-dropdown>
-                    </div>
-                </el-header>
-                
-                <el-main>
-                    <div id="content">
-                        <!-- 内容区将由前端路由控制 -->
-                        <component-dashboard v-if="current_page === 1"></component-dashboard>
-                        <component-plugins v-if="current_page === 2"></component-plugins>
-                        <component-users v-if="current_page === 3"></component-users>
-                        <component-messages v-if="current_page === 4"></component-messages>
-                        <component-stats v-if="current_page === 5"></component-stats>
-                        <component-settings v-if="current_page === 6"></component-settings>
-                    </div>
-                </el-main>
-            </el-container>
-        </el-container>
+        <!-- 加载动画 -->
+        <div class="loading-container">
+            <img src="/static/img/logo.png" alt="XYBot Logo" class="loading-logo">
+            <div class="loading-text">加载中，请稍候...</div>
+        </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/element-plus"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <!-- 引入Vue3 -->
+    <script src="https://unpkg.com/vue@3.2.47/dist/vue.global.prod.js"></script>
+    <!-- 引入Element Plus -->
+    <script src="https://unpkg.com/element-plus@2.3.1/dist/index.full.min.js"></script>
+    <!-- 引入Axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- 引入ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+    
+    <!-- 引入自定义组件 -->
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/plugins.js"></script>
+    <script src="/static/js/users.js"></script>
+    <script src="/static/js/messages.js"></script>
+    <script src="/static/js/status.js"></script>
+    
+    <!-- 引入主应用 -->
     <script src="/static/js/main.js"></script>
+    
+    <script>
+        // 全局消息通知配置
+        const MessageConfig = {
+            showClose: true,
+            duration: 3000
+        };
+        
+        // 全局错误处理
+        window.addEventListener('error', function(event) {
+            console.error('全局错误:', event.error);
+            ElementPlus.ElMessage.error({
+                message: '系统出现错误，请刷新页面或联系管理员',
+                ...MessageConfig
+            });
+        });
+        
+        // 为移动设备显示滑动提示
+        if (window.innerWidth < 768) {
+            const showSwipeHint = () => {
+                // 检查是否已显示过提示
+                if (localStorage.getItem('swipeHintShown')) return;
+                
+                const hint = document.createElement('div');
+                hint.className = 'mobile-swipe-hint';
+                hint.textContent = '向右滑动打开菜单';
+                document.body.appendChild(hint);
+                
+                // 标记已显示提示
+                localStorage.setItem('swipeHintShown', 'true');
+                
+                // 动画结束后移除提示
+                setTimeout(() => {
+                    hint.remove();
+                }, 3000);
+            };
+            
+            // 延迟显示提示
+            setTimeout(showSwipeHint, 1500);
+        }
+        
+        // AJAX错误拦截
+        axios.interceptors.response.use(
+            response => response,
+            error => {
+                if (error.response) {
+                    // 如果是401错误，重定向到登录页
+                    if (error.response.status === 401) {
+                        window.location.href = '/login';
+                        return Promise.reject(error);
+                    }
+                    
+                    // 显示后端返回的错误信息
+                    const errorMsg = error.response.data.message || '请求失败';
+                    ElementPlus.ElMessage.error({
+                        message: errorMsg,
+                        ...MessageConfig
+                    });
+                } else {
+                    // 网络错误等
+                    ElementPlus.ElMessage.error({
+                        message: '网络连接失败，请检查网络设置',
+                        ...MessageConfig
+                    });
+                }
+                return Promise.reject(error);
+            }
+        );
+    </script>
 </body>
 </html> 

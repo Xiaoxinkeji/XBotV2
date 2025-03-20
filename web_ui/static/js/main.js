@@ -102,27 +102,176 @@ const ComponentPlugins = {
 
 // 其他组件...
 
-// Vue应用
+// 主应用
 const app = Vue.createApp({
     data() {
         return {
-            current_page: 1
+            activeMenu: localStorage.getItem('activeMenu') || 'dashboard',
+            isMobile: window.innerWidth < 768,
+            sidebarCollapsed: false
         }
     },
     mounted() {
-        // 监听菜单点击
-        document.querySelectorAll('.el-menu-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                this.current_page = index + 1;
-            });
-        });
-    }
+        window.addEventListener('resize', this.handleResize);
+        this.handleResize();
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.handleResize);
+    },
+    methods: {
+        handleResize() {
+            this.isMobile = window.innerWidth < 768;
+            if (this.isMobile) {
+                this.sidebarCollapsed = true;
+            }
+        },
+        toggleSidebar() {
+            this.sidebarCollapsed = !this.sidebarCollapsed;
+        },
+        setActiveMenu(menu) {
+            this.activeMenu = menu;
+            localStorage.setItem('activeMenu', menu);
+            if (this.isMobile) {
+                this.sidebarCollapsed = true;
+            }
+        }
+    },
+    template: `
+        <div class="app-container" :class="{'mobile': isMobile, 'sidebar-collapsed': sidebarCollapsed}">
+            <!-- 侧边栏 -->
+            <div class="sidebar">
+                <div class="logo-container">
+                    <img src="/static/img/logo.png" alt="XYBot Logo" class="logo" />
+                    <span class="app-name" v-if="!sidebarCollapsed">XYBot管理</span>
+                </div>
+                
+                <div class="menu-container">
+                    <div class="menu-item" 
+                        :class="{'active': activeMenu === 'dashboard'}" 
+                        @click="setActiveMenu('dashboard')">
+                        <i class="el-icon-monitor"></i>
+                        <span v-if="!sidebarCollapsed">系统概览</span>
+                    </div>
+                    <div class="menu-item" 
+                        :class="{'active': activeMenu === 'plugins'}" 
+                        @click="setActiveMenu('plugins')">
+                        <i class="el-icon-connection"></i>
+                        <span v-if="!sidebarCollapsed">插件管理</span>
+                    </div>
+                    <div class="menu-item" 
+                        :class="{'active': activeMenu === 'users'}" 
+                        @click="setActiveMenu('users')">
+                        <i class="el-icon-user"></i>
+                        <span v-if="!sidebarCollapsed">用户与群组</span>
+                    </div>
+                    <div class="menu-item" 
+                        :class="{'active': activeMenu === 'messages'}" 
+                        @click="setActiveMenu('messages')">
+                        <i class="el-icon-chat-line-square"></i>
+                        <span v-if="!sidebarCollapsed">消息管理</span>
+                    </div>
+                    <div class="menu-item" 
+                        :class="{'active': activeMenu === 'status'}" 
+                        @click="setActiveMenu('status')">
+                        <i class="el-icon-odometer"></i>
+                        <span v-if="!sidebarCollapsed">系统状态</span>
+                    </div>
+                </div>
+                
+                <div class="sidebar-footer">
+                    <div class="menu-item" @click="toggleSidebar">
+                        <i :class="sidebarCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"></i>
+                        <span v-if="!sidebarCollapsed">收起菜单</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主内容区 -->
+            <div class="main-content">
+                <header class="app-header">
+                    <div class="menu-toggle" @click="toggleSidebar" v-if="isMobile">
+                        <i class="el-icon-menu"></i>
+                    </div>
+                    <h1 class="page-title">{{ {
+                        'dashboard': '系统概览',
+                        'plugins': '插件管理',
+                        'users': '用户与群组',
+                        'messages': '消息管理',
+                        'status': '系统状态'
+                    }[activeMenu] }}</h1>
+                </header>
+                
+                <main class="content-area">
+                    <component-dashboard v-if="activeMenu === 'dashboard'" />
+                    <component-plugins v-if="activeMenu === 'plugins'" />
+                    <component-users v-if="activeMenu === 'users'" />
+                    <component-messages v-if="activeMenu === 'messages'" />
+                    <component-status v-if="activeMenu === 'status'" />
+                </main>
+            </div>
+        </div>
+    `
 });
 
 // 注册组件
 app.component('component-dashboard', ComponentDashboard);
 app.component('component-plugins', ComponentPlugins);
-// 注册其他组件...
+app.component('component-users', ComponentUsers);
+app.component('component-messages', ComponentMessages);
+app.component('component-status', ComponentStatus);
 
 // 挂载应用
-app.mount('#app'); 
+app.use(ElementPlus);
+app.provide('logOut', function() {
+    axios.post('/api/auth/logout')
+        .then(response => {
+            window.location.href = '/login';
+        })
+        .catch(error => {
+            console.error('登出失败:', error);
+            this.$message.error('登出失败');
+        });
+});
+
+// 在挂载前检查登录状态
+app.mount('#app');
+
+// 检查登录状态
+axios.get('/api/auth/check')
+    .catch(error => {
+        if (error.response && error.response.status === 401) {
+            window.location.href = '/login';
+        }
+    });
+
+// 添加以下代码以优化移动端体验
+if (window.innerWidth < 768) {
+  // 为触摸设备优化侧边栏展开/收起
+  const handleTouchStart = (e) => {
+    app.touchStartX = e.touches[0].clientX;
+  };
+  
+  const handleTouchEnd = (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - app.touchStartX;
+    
+    // 从左向右滑动，显示侧边栏
+    if (diff > 70 && app.touchStartX < 30) {
+      app.sidebarCollapsed = false;
+    }
+    // 从右向左滑动，隐藏侧边栏
+    else if (diff < -70 && !app.sidebarCollapsed) {
+      app.sidebarCollapsed = true;
+    }
+  };
+  
+  // 添加触摸事件监听
+  document.addEventListener('touchstart', handleTouchStart, { passive: true });
+  document.addEventListener('touchend', handleTouchEnd, { passive: true });
+  
+  // 组件卸载时移除事件监听
+  app.unmounted = () => {
+    document.removeEventListener('touchstart', handleTouchStart);
+    document.removeEventListener('touchend', handleTouchEnd);
+  };
+} 
