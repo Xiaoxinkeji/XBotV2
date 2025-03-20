@@ -8,12 +8,13 @@ import uvicorn
 import logging
 from dotenv import load_dotenv
 import argparse
+from web_ui.config import config
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='启动XYBot Web管理界面')
-parser.add_argument('--host', help='主机地址')
-parser.add_argument('--port', type=int, help='端口号')
-parser.add_argument('--debug', action='store_true', help='启用调试模式')
+parser.add_argument('--host', help='主机地址', default=config.host)
+parser.add_argument('--port', type=int, help='端口号', default=config.port)
+parser.add_argument('--debug', action='store_true', help='启用调试模式', default=config.debug)
 args = parser.parse_args()
 
 # 加载环境变量

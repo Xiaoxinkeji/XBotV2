@@ -8,6 +8,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta
 from web_ui.utils import api_response, error_response
+from web_ui.config import config
 
 router = APIRouter()
 
@@ -24,11 +25,11 @@ def get_admin_credentials():
     """获取管理员凭据"""
     admin_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin.json")
     if not os.path.exists(admin_file):
-        # 如果文件不存在，创建默认管理员账户
+        # 如果文件不存在，使用配置中的管理员账户
         default_admin = {
-            "username": "admin",
-            # 默认密码: admin123
-            "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
+            "username": config.admin_username,
+            # 默认密码从配置读取
+            "password_hash": hashlib.sha256(config.admin_password.encode()).hexdigest(),
         }
         os.makedirs(os.path.dirname(admin_file), exist_ok=True)
         with open(admin_file, "w") as f:
@@ -59,9 +60,9 @@ def verify_session(session_id: Optional[str] = Cookie(None)):
     
     # 更新会话过期时间
     if session["remember_me"]:
-        session["expires"] = datetime.now() + timedelta(days=7)
+        session["expires"] = datetime.now() + timedelta(days=config.remember_me_days)
     else:
-        session["expires"] = datetime.now() + timedelta(hours=2)
+        session["expires"] = datetime.now() + timedelta(hours=config.session_expiry_hours)
     
     return session["username"]
 
