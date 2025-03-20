@@ -14,7 +14,13 @@
 ### 1. 安装依赖
 
 ```bash
-pip install fastapi uvicorn jinja2 sqlalchemy asyncpg psutil redis python-dotenv
+pip install -r requirements.txt
+```
+
+或者单独安装所需的包：
+
+```bash
+pip install fastapi uvicorn jinja2 sqlalchemy asyncpg psutil redis python-dotenv python-multipart tomli-w
 ```
 
 ### 2. 配置Web管理界面

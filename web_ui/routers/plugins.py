@@ -1,8 +1,28 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Body, UploadFile, File, Query
 from typing import List, Dict, Any, Optional
 import os
-import tomllib
-import tomli_w
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    import tomli as tomllib  # 在低版本Python中使用tomli库
+
+try:
+    import tomli_w
+except ImportError:
+    # 使用JSON作为替代方案
+    import json
+    
+    def dump_toml_alternative(data, file):
+        """使用JSON作为TOML的替代方案"""
+        json.dump(data, file, ensure_ascii=False, indent=2)
+    
+    # 替换tomli_w.dump函数
+    class TomliWReplacement:
+        @staticmethod
+        def dump(data, file):
+            return dump_toml_alternative(data, file)
+    
+    tomli_w = TomliWReplacement()
 import shutil
 import zipfile
 from pathlib import Path

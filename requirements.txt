@@ -28,3 +28,10 @@ uvicorn~=0.27.1
 jinja2~=3.1.3
 python-multipart~=0.0.9
 aiofiles~=23.2.1
+tomli-w
+tomli; python_version < "3.11"  # 仅在Python 3.11之前的版本中需要
+
+# 新增依赖
+asyncpg~=0.28.0
+psutil~=6.0.0
+python-dotenv~=0.24.0
