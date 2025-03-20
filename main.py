@@ -123,6 +123,12 @@ async def main():
     web_thread = threading.Thread(target=start_web_server, daemon=True)
     web_thread.start()
     logger.success("Web管理界面已在 http://localhost:8080 启动")
+    
+    # 在Web服务启动后再启动机器人服务
+    if auto_restart:
+        # 监控代码...
+    else:
+        # 直接运行主程序代码...
 
 
 if __name__ == "__main__":

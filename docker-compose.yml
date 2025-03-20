@@ -3,6 +3,9 @@ services:
     image: xiaoxinkeji/xbotv2:latest
     container_name: XYBotV2
     restart: on-failure:3
+    ports:
+      - "9000:9000"  # 原有的WechatAPI端口
+      - "8080:8080"  # 新增的Web界面端口
     volumes:
       - xybotv2:/app
       - redis_data:/var/lib/redis
