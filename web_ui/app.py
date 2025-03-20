@@ -16,7 +16,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 import logging
 import sys
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from datetime import datetime
 
 # 设置日志
@@ -104,9 +104,8 @@ async def custom_swagger_ui_html():
         openapi_url=app.openapi_url,
         title=app.title + " - API文档",
         oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
-        swagger_favicon_url="/static/img/logo.png",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.1.0/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.1.0/swagger-ui.css",
     )
 
 @app.get("/api/docs/oauth2-redirect", include_in_schema=False)
@@ -131,8 +130,16 @@ async def shutdown_event():
     """应用关闭时执行"""
     logger.info("Web管理界面关闭中")
 
+# 将导入移到函数内部以避免循环导入
+def get_sessions():
+    from web_ui.routers.auth import SESSIONS
+    return SESSIONS
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # 使用函数获取会话存储
+        SESSIONS = get_sessions()
+        
         # 不需要验证的路径
         exempt_paths = ["/login", "/api/auth/login", "/api/auth/check", "/health", "/static"]
         
