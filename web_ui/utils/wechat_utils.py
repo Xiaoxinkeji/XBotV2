@@ -107,14 +107,27 @@ async def get_wechat_status() -> Dict[str, Any]:
         logger.error(f"获取微信状态时出错: {str(e)}")
         return {"status": "error", "message": str(e), "is_running": False, "is_logged_in": False}
 
-async def init_wechat_connection():
-    """初始化微信连接和配置"""
-    # 这个函数可以在应用启动时调用，确保微信API正确初始化
-    logger.info("正在初始化微信API连接...")
-    is_connected = await check_wechat_connection()
-    if is_connected:
-        logger.info("微信API连接成功")
-    else:
-        logger.warning("微信API连接失败，将在后续请求中重试")
+async def init_wechat_connection() -> bool:
+    """
+    初始化微信API连接
+    """
+    try:
+        # 检查连接是否有效
+        is_connected = await check_wechat_connection()
+        if is_connected:
+            logger.info("微信API服务已连接")
+            return True
+            
+        # 尝试启动API服务
+        from web_ui.utils.service_recovery import start_wechat_service
+        result = await start_wechat_service()
         
-    return is_connected 
+        if result:
+            logger.info("微信API服务启动成功")
+        else:
+            logger.warning("微信API服务启动失败，某些功能可能不可用")
+            
+        return result
+    except Exception as e:
+        logger.error(f"初始化微信连接时出错: {str(e)}")
+        return False 

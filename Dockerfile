@@ -17,6 +17,10 @@ RUN grep -v -E "xywechatpad-binary|matplotlib~=3.10.0|pysilk>=0.5" requirements.
 # 复制项目文件
 COPY . .
 
+# 确保目录结构存在
+RUN mkdir -p /app/web_ui/middlewares /app/web_ui/utils && \
+    touch /app/web_ui/middlewares/__init__.py /app/web_ui/utils/__init__.py
+
 # 尝试安装本地包(如果存在)
 RUN if [ -d "xywechatpad-binary" ]; then \
       echo "从本地安装xywechatpad-binary" && \

@@ -26,10 +26,15 @@ except ImportError:
     print("警告: psutil 模块未安装，系统监控功能将不可用")
 import subprocess
 
-# 导入新增的中间件和工具
-from .middlewares.wechat_monitor import WechatMonitorMiddleware
-from .utils.wechat_utils import init_wechat_connection, check_wechat_connection
-from .utils.service_recovery import start_wechat_service
+# 在导入处添加错误处理
+try:
+    from .middlewares.wechat_monitor import WechatMonitorMiddleware
+    from .utils.wechat_utils import init_wechat_connection, check_wechat_connection
+    from .utils.service_recovery import start_wechat_service
+    HAS_WECHAT_MONITOR = True
+except ImportError:
+    HAS_WECHAT_MONITOR = False
+    print("警告: 微信监控功能不可用，跳过相关模块导入")
 
 # 设置日志
 logging.basicConfig(
@@ -61,8 +66,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 添加微信监控中间件
-app.add_middleware(WechatMonitorMiddleware)
+# 在添加中间件的地方添加条件判断
+if HAS_WECHAT_MONITOR:
+    app.add_middleware(WechatMonitorMiddleware, service_recovery_func=start_wechat_service)
 
 # 静态文件
 app.mount(

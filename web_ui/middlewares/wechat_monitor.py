@@ -1,89 +1,112 @@
-import asyncio
+"""
+微信服务监控中间件
+负责检测微信API服务状态并在需要时恢复服务
+"""
 import logging
+import asyncio
 import time
-from typing import Dict, Any, Callable
-from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from ..utils.wechat_utils import check_wechat_connection, ping_wechat_api
-from ..utils.service_recovery import restart_wechat_service
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
 
 logger = logging.getLogger(__name__)
 
 class WechatMonitorMiddleware(BaseHTTPMiddleware):
-    def __init__(
-        self,
-        app,
-        check_interval: int = 300,  # 5分钟检查一次
-    ):
+    """
+    微信服务监控中间件
+    """
+    def __init__(self, app, service_recovery_func=None, check_interval=300):
+        """
+        初始化中间件
+        
+        :param app: FastAPI应用实例
+        :param service_recovery_func: 服务恢复函数，必须是一个异步函数
+        :param check_interval: 检查间隔(秒)
+        """
         super().__init__(app)
+        self.service_recovery_func = service_recovery_func
         self.check_interval = check_interval
-        self.last_check = 0
-        self.wechat_status = False
-        self.reconnect_attempts = 0
-        self.max_reconnect_attempts = 5
+        self.last_check_time = 0
+        self.is_recovering = False
         
-        # 启动后台监控任务
-        self.start_monitor_task()
-    
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """处理请求并监控微信API状态，但不阻塞主请求流程"""
-        # 对于API状态请求，创建异步任务检查微信状态，但不等待结果
-        if request.url.path == "/api/status" or request.url.path == "/api/wechat/status":
-            current_time = time.time()
-            if current_time - self.last_check > 60:  # 至少间隔1分钟做一次检查
-                # 创建任务但不等待，避免阻塞主请求
-                asyncio.create_task(self.check_and_update_status())
+        # 启动监控任务
+        if self.service_recovery_func:
+            asyncio.create_task(self._monitor_service())
         
-        # 继续处理请求，不阻塞
-        response = await call_next(request)
-        return response
-    
-    def start_monitor_task(self):
-        """启动后台监控任务"""
-        asyncio.create_task(self.monitor_wechat_status())
-    
-    async def monitor_wechat_status(self):
-        """定期监控微信API状态的后台任务"""
+    async def _monitor_service(self):
+        """持续监控服务状态的后台任务"""
         while True:
-            await self.check_and_update_status()
+            try:
+                # 检查微信服务状态
+                from web_ui.utils.wechat_utils import check_wechat_connection
+                
+                is_connected = await check_wechat_connection()
+                
+                if not is_connected and not self.is_recovering:
+                    logger.warning("检测到微信服务未连接，尝试恢复...")
+                    self.is_recovering = True
+                    
+                    # 调用恢复函数
+                    recovery_result = await self.service_recovery_func()
+                    
+                    if recovery_result:
+                        logger.info("微信服务恢复成功")
+                    else:
+                        logger.error("微信服务恢复失败")
+                        
+                    self.is_recovering = False
+            except Exception as e:
+                logger.error(f"监控微信服务时出错: {str(e)}")
+                self.is_recovering = False
+                
+            # 间隔检查
             await asyncio.sleep(self.check_interval)
     
-    async def check_and_update_status(self):
-        """检查并更新微信API状态"""
-        self.last_check = time.time()
+    async def dispatch(self, request: Request, call_next):
+        """
+        处理请求并检查服务状态
+        """
+        # 检查是否需要恢复服务
+        current_time = time.time()
+        if (current_time - self.last_check_time > self.check_interval and 
+            self.service_recovery_func and not self.is_recovering):
+            
+            self.last_check_time = current_time
+            
+            # 在单独的任务中检查，不阻塞请求
+            asyncio.create_task(self._check_service())
         
+        # 继续处理请求
         try:
-            # 先尝试主要检查方法
-            self.wechat_status = await check_wechat_connection()
-            
-            # 如果主方法失败，尝试ping
-            if not self.wechat_status:
-                self.wechat_status = await ping_wechat_api()
-            
-            # 成功连接，重置重连计数
-            if self.wechat_status:
-                if self.reconnect_attempts > 0:
-                    logger.info(f"微信API已恢复连接，之前尝试次数: {self.reconnect_attempts}")
-                self.reconnect_attempts = 0
-            else:
-                # 连接失败，增加重连计数
-                self.reconnect_attempts += 1
-                logger.warning(f"微信API连接失败，当前尝试次数: {self.reconnect_attempts}")
-                
-                # 如果连续失败且达到一定次数，尝试恢复服务
-                if self.reconnect_attempts >= 3:
-                    logger.warning("微信API连续失败，尝试恢复服务...")
-                    recovery_result = await restart_wechat_service()
-                    if recovery_result:
-                        logger.info("微信服务恢复操作成功执行")
-                    else:
-                        logger.error("微信服务恢复操作失败")
-                
-                # 如果尝试次数过多，减少检查频率
-                if self.reconnect_attempts > self.max_reconnect_attempts:
-                    logger.error("微信API重连尝试达到上限，减少检查频率")
-                
+            response = await call_next(request)
+            return response
         except Exception as e:
-            logger.error(f"检查微信状态时出错: {str(e)}")
-            self.wechat_status = False 
+            logger.error(f"处理请求时出错: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "服务器内部错误"}
+            )
+    
+    async def _check_service(self):
+        """检查服务状态并在需要时恢复"""
+        try:
+            from web_ui.utils.wechat_utils import check_wechat_connection
+            
+            is_connected = await check_wechat_connection()
+            
+            if not is_connected and not self.is_recovering:
+                logger.warning("检测到微信服务未连接，尝试恢复...")
+                self.is_recovering = True
+                
+                # 调用恢复函数
+                recovery_result = await self.service_recovery_func()
+                
+                if recovery_result:
+                    logger.info("微信服务恢复成功")
+                else:
+                    logger.error("微信服务恢复失败")
+                    
+                self.is_recovering = False
+        except Exception as e:
+            logger.error(f"检查微信服务时出错: {str(e)}")
+            self.is_recovering = False 
