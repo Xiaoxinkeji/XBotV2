@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <!-- 使用本地或备用CDN -->
+    <!-- 使用本地资源文件 -->
     <link rel="stylesheet" href="/static/vendor/element-plus.min.css">
     <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="/static/css/main.css">
@@ -35,6 +35,57 @@
             0% { transform: scale(0.95); opacity: 0.7; }
             100% { transform: scale(1); opacity: 1; }
         }
+        
+        /* 添加应急模式样式 */
+        .minimal-app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .app-header {
+            background-color: #409EFF;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .app-header h1 {
+            margin: 0;
+        }
+        
+        .main-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+        }
+        
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f5f7fa;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+        }
+        
+        #refresh-btn {
+            background-color: #409EFF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
@@ -46,89 +97,94 @@
         </div>
     </div>
     
-    <!-- 使用本地脚本或备用CDN -->
-    <script src="/static/vendor/vue.global.min.js"></script>
-    <script src="/static/vendor/element-plus.full.min.js"></script>
-    <script src="/static/vendor/axios.min.js"></script>
-    <script src="/static/vendor/echarts.min.js"></script>
-    
-    <!-- 引入自定义组件 -->
-    <script src="/static/js/dashboard.js"></script>
-    <script src="/static/js/plugins.js"></script>
-    <script src="/static/js/users.js"></script>
-    <script src="/static/js/messages.js"></script>
-    <script src="/static/js/status.js"></script>
-    
-    <!-- 最后引入主应用 -->
-    <script src="/static/js/main.js"></script>
-    
+    <!-- 使用本地脚本或备用资源 -->
     <script>
-        // 全局消息通知配置
-        const MessageConfig = {
-            showClose: true,
-            duration: 3000
-        };
-        
-        // 全局错误处理
-        window.addEventListener('error', function(event) {
-            console.error('全局错误:', event.error);
-            ElementPlus.ElMessage.error({
-                message: '系统出现错误，请刷新页面或联系管理员',
-                ...MessageConfig
-            });
+        // 资源加载错误处理
+        function handleScriptError(scriptName) {
+            console.error(`${scriptName}加载失败，尝试备用方案`);
+            document.querySelector('.loading-text').textContent = `${scriptName}加载失败，尝试备用方案...`;
+            return true; // 允许继续加载其他资源
+        }
+    </script>
+    
+    <!-- 先尝试加载本地资源 -->
+    <script src="/static/vendor/vue.global.min.js" onerror="handleScriptError('Vue')"></script>
+    <script src="/static/vendor/element-plus.full.min.js" onerror="handleScriptError('ElementPlus')"></script>
+    <script src="/static/vendor/axios.min.js" onerror="handleScriptError('Axios')"></script>
+    <script src="/static/vendor/echarts.min.js" onerror="handleScriptError('ECharts')"></script>
+    
+    <!-- 检查Vue是否加载成功，如果失败则加载极简版 -->
+    <script>
+        if (typeof Vue === 'undefined') {
+            console.log('Vue加载失败，使用极简版');
+            document.write('<script src="/static/vendor/minimal-vue.js"><\/script>');
+        }
+    </script>
+    
+    <!-- 检查依赖加载状态并显示简化版 -->
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            // 检查核心依赖
+            const missingDependencies = [];
+            if (typeof Vue === 'undefined') missingDependencies.push('Vue');
+            if (typeof ElementPlus === 'undefined') missingDependencies.push('ElementPlus');
+            if (typeof axios === 'undefined') missingDependencies.push('Axios');
+            
+            if (missingDependencies.length > 0) {
+                console.error('缺少核心依赖:', missingDependencies.join(', '));
+                
+                const container = document.getElementById('app');
+                container.innerHTML = `
+                    <div class="minimal-app">
+                        <header class="app-header">
+                            <h1>XYBot管理面板(简化版)</h1>
+                        </header>
+                        <div class="main-content">
+                            <h2>资源加载受限</h2>
+                            <p>系统无法加载以下前端依赖库: ${missingDependencies.join(', ')}</p>
+                            <div class="card-container">
+                                <div class="stat-card">
+                                    <h3>系统状态</h3>
+                                    <div class="stat-value">正在运行</div>
+                                    <p>微信接口: <a href="/api/health" target="_blank">查看状态</a></p>
+                                </div>
+                            </div>
+                            <p>
+                                <a href="/diagnostic" class="btn">查看诊断</a>
+                                <button onclick="window.location.reload()" id="refresh-btn">刷新页面</button>
+                            </p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 正常加载组件和主应用
+            loadScripts([
+                '/static/js/dashboard.js',
+                '/static/js/plugins.js',
+                '/static/js/users.js',
+                '/static/js/messages.js',
+                '/static/js/status.js',
+                '/static/js/main.js'
+            ]);
         });
         
-        // 为移动设备显示滑动提示
-        if (window.innerWidth < 768) {
-            const showSwipeHint = () => {
-                // 检查是否已显示过提示
-                if (localStorage.getItem('swipeHintShown')) return;
-                
-                const hint = document.createElement('div');
-                hint.className = 'mobile-swipe-hint';
-                hint.textContent = '向右滑动打开菜单';
-                document.body.appendChild(hint);
-                
-                // 标记已显示提示
-                localStorage.setItem('swipeHintShown', 'true');
-                
-                // 动画结束后移除提示
-                setTimeout(() => {
-                    hint.remove();
-                }, 3000);
-            };
+        // 顺序加载脚本
+        function loadScripts(scripts) {
+            if (scripts.length === 0) return;
             
-            // 延迟显示提示
-            setTimeout(showSwipeHint, 1500);
+            const script = document.createElement('script');
+            script.src = scripts[0];
+            script.onload = function() {
+                loadScripts(scripts.slice(1));
+            };
+            script.onerror = function() {
+                console.error(`组件脚本加载失败: ${scripts[0]}`);
+                loadScripts(scripts.slice(1));
+            };
+            document.body.appendChild(script);
         }
-        
-        // AJAX错误拦截
-        axios.interceptors.response.use(
-            response => response,
-            error => {
-                if (error.response) {
-                    // 如果是401错误，重定向到登录页
-                    if (error.response.status === 401) {
-                        window.location.href = '/login';
-                        return Promise.reject(error);
-                    }
-                    
-                    // 显示后端返回的错误信息
-                    const errorMsg = error.response.data.message || '请求失败';
-                    ElementPlus.ElMessage.error({
-                        message: errorMsg,
-                        ...MessageConfig
-                    });
-                } else {
-                    // 网络错误等
-                    ElementPlus.ElMessage.error({
-                        message: '网络连接失败，请检查网络设置',
-                        ...MessageConfig
-                    });
-                }
-                return Promise.reject(error);
-            }
-        );
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.1.0"></script>
 </body>

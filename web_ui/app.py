@@ -238,4 +238,11 @@ async def minimal_page(request: Request):
     return templates.TemplateResponse(
         "minimal.html",
         {"request": request}
+    )
+
+@app.get("/simple")
+async def simple_page(request: Request):
+    return templates.TemplateResponse(
+        "simple.html",
+        {"request": request}
     ) 
