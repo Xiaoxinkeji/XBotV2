@@ -76,6 +76,7 @@ def get_sync_session():
 # 数据库初始化函数
 async def init_db():
     """初始化数据库表结构"""
+    global engine, async_session_factory  # 将global声明移到函数开头
     from database.models import Base
     
     try:
@@ -92,7 +93,6 @@ async def init_db():
         else:
             logger.warning("尝试使用SQLite作为备选数据库...")
             # 重新创建SQLite引擎
-            global engine, async_session_factory
             sqlite_url = "sqlite+aiosqlite:///./xybot.db" 
             engine = create_async_engine(sqlite_url, echo=False, future=True)
             async_session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -100,7 +100,7 @@ async def init_db():
             # 重新尝试初始化
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("使用SQLite备选数据库初始化成功") 
+            logger.info("使用SQLite备选数据库初始化成功")
 
 # 如果psutil导入失败，使用轻量级替代
 try:
