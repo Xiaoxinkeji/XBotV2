@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-import psutil
+from web_ui.utils.system_utils import psutil, HAS_PSUTIL
 import platform
 import os
 import sys

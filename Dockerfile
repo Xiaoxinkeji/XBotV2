@@ -42,7 +42,7 @@ RUN pip install fastapi==0.110.0 uvicorn==0.27.1 jinja2==3.1.3 python-multipart=
 RUN pip install tomli==2.0.1 tomli_w==1.0.0 redis==5.0.1 python-dotenv==1.0.0
 
 # 使用wheel安装psutil
-RUN pip install --only-binary=:all: psutil==5.9.6
+# RUN pip install --only-binary=:all: psutil==5.9.6
 
 # 安装剩余依赖
 RUN pip install -r requirements.txt || echo "部分依赖安装失败，继续构建"

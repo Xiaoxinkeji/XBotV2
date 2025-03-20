@@ -30,6 +30,5 @@ python-multipart~=0.0.9
 aiofiles~=23.2.1
 tomli~=2.0.1
 tomli_w~=1.0.0
-psutil==5.9.6 --only-binary=psutil
 redis~=5.0.1
 python-dotenv~=1.0.0
