@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <!-- 确保使用固定版本 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.min.css">
+    <!-- 使用本地或备用CDN -->
+    <link rel="stylesheet" href="/static/vendor/element-plus.min.css">
     <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="/static/css/icons.css">
     <!-- 图标和Favicon -->
     <link rel="shortcut icon" href="/static/img/logo.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.1.0/dist/index.css">
     <style>
         /* 加载动画样式 */
         .loading-container {
@@ -46,16 +46,11 @@
         </div>
     </div>
     
-    <!-- 使用匹配的Vue版本 -->
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.min.js"></script>
-    <!-- 使用匹配的Element Plus版本 -->
-    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.full.min.js"></script>
-    <!-- 引入Element Plus图标 -->
-    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.1.0/dist/index.min.js"></script>
-    <!-- 使用固定版本的Axios -->
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
-    <!-- 保持ECharts版本 -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+    <!-- 使用本地脚本或备用CDN -->
+    <script src="/static/vendor/vue.global.min.js"></script>
+    <script src="/static/vendor/element-plus.full.min.js"></script>
+    <script src="/static/vendor/axios.min.js"></script>
+    <script src="/static/vendor/echarts.min.js"></script>
     
     <!-- 引入自定义组件 -->
     <script src="/static/js/dashboard.js"></script>

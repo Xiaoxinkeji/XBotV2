@@ -224,4 +224,18 @@ async def diagnostic_page(request: Request):
     return templates.TemplateResponse(
         "diagnostic.html",
         {"request": request}
+    )
+
+@app.get("/test")
+async def test_page(request: Request):
+    return templates.TemplateResponse(
+        "test.html",
+        {"request": request}
+    )
+
+@app.get("/minimal")
+async def minimal_page(request: Request):
+    return templates.TemplateResponse(
+        "minimal.html",
+        {"request": request}
     ) 

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XYBot - 基础测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.min.css">
+</head>
+<body>
+    <div id="app">
+        <h1>{{ message }}</h1>
+        <el-button @click="count++">计数器: {{ count }}</el-button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.3.14/dist/index.full.js"></script>
+    
+    <script>
+        // 基础测试代码
+        const app = Vue.createApp({
+            data() {
+                return {
+                    message: 'Vue 加载测试',
+                    count: 0
+                }
+            }
+        });
+        app.use(ElementPlus);
+        app.mount('#app');
+        
+        // 输出调试信息
+        console.log('Vue 版本:', Vue.version);
+        console.log('ElementPlus 加载状态:', !!ElementPlus);
+    </script>
+</body>
+</html> 
