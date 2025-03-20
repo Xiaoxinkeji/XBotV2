@@ -18,7 +18,12 @@ import sys
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from datetime import datetime
-import psutil
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+    print("警告: psutil 模块未安装，系统监控功能将不可用")
 import subprocess
 
 # 导入新增的中间件和工具
@@ -300,4 +305,12 @@ async def offline_page(request: Request):
     return templates.TemplateResponse(
         "offline.html",
         {"request": request}
-    ) 
+    )
+
+# 在需要使用 psutil 的地方添加检查
+def get_system_stats():
+    if not HAS_PSUTIL:
+        return {"error": "psutil 模块未安装，无法获取系统统计信息"}
+    
+    # 原有的使用 psutil 的代码
+    # ... 
