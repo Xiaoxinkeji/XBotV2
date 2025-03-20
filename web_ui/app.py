@@ -130,6 +130,12 @@ async def shutdown_event():
     """应用关闭时执行"""
     logger.info("Web管理界面关闭中")
 
+@app.on_event("startup")
+async def startup_db_client():
+    from database.session import init_db
+    await init_db()
+    logger.info("数据库初始化完成")
+
 # 将导入移到函数内部以避免循环导入
 def get_sessions():
     from web_ui.routers.auth import SESSIONS
