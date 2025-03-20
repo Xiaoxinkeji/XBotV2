@@ -9,7 +9,8 @@ const ComponentStatus = {
                 loading: true,
                 connected: false,
                 nickname: '',
-                wxid: ''
+                wxid: '',
+                phone: ''
             }
         }
     },
@@ -74,6 +75,7 @@ const ComponentStatus = {
                         this.wechatStatus.connected = true;
                         this.wechatStatus.nickname = data.user_info.nickname;
                         this.wechatStatus.wxid = data.user_info.wxid;
+                        this.wechatStatus.phone = data.user_info.phone || '';
                     } else {
                         this.wechatStatus.connected = false;
                     }
@@ -182,6 +184,7 @@ const ComponentStatus = {
                                 <div class="wechat-details">
                                     <div class="wechat-nickname">{{ wechatStatus.nickname || '-' }}</div>
                                     <div class="wechat-wxid">{{ wechatStatus.wxid || '-' }}</div>
+                                    <div class="wechat-phone" v-if="wechatStatus.phone">手机号: {{ wechatStatus.phone }}</div>
                                 </div>
                             </div>
                             <div class="wechat-status">

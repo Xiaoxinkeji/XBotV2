@@ -1,0 +1,10 @@
+# 推荐使用gitee镜像资源下载避免网络问题
+mkdir -p web_ui/static/vendor
+curl -o web_ui/static/vendor/vue.global.min.js https://gitee.com/mirrors/vue/raw/v3.3.4/dist/vue.global.prod.js
+curl -o web_ui/static/vendor/element-plus.full.min.js https://gitee.com/mianmian-yu/element-plus/raw/2.3.14/dist/index.full.min.js
+curl -o web_ui/static/vendor/element-plus.min.css https://gitee.com/mianmian-yu/element-plus/raw/2.3.14/dist/index.min.css
+curl -o web_ui/static/vendor/axios.min.js https://gitee.com/mirrors/axios/raw/v1.4.0/dist/axios.min.js
+curl -o web_ui/static/vendor/echarts.min.js https://gitee.com/apache/incubator-echarts/raw/5.4.2/dist/echarts.min.js
+
+# 如果gitee不可用，可以使用国内CDN
+# curl -o web_ui/static/vendor/echarts.min.js https://cdn.bootcdn.net/ajax/libs/echarts/5.4.2/echarts.min.js 

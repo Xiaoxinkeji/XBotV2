@@ -88,4 +88,37 @@
 
 .action-btn:hover {
     background-color: #66b1ff;
+}
+
+/* 手机号显示样式 */
+.wechat-phone {
+    font-size: 13px;
+    color: #606266;
+    margin-top: 4px;
+}
+
+/* 用户信息卡片样式增强 */
+.success-info {
+    border-radius: 6px;
+    padding: 15px;
+    background-color: #f5f7fa;
+    margin: 15px 0;
+}
+
+.success-info .avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid #67C23A;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.info h3 {
+    color: #303133;
+    margin-bottom: 8px;
+}
+
+.info p {
+    margin: 5px 0;
+    color: #606266;
 } 

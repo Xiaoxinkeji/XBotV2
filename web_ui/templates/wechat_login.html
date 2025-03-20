@@ -158,6 +158,7 @@
                 <div class="info">
                     <h3 id="user-nickname">未知用户</h3>
                     <p id="user-wxid">微信号: -</p>
+                    <p id="user-phone">手机号: -</p>
                 </div>
                 <div style="clear:both;"></div>
             </div>
@@ -279,6 +280,13 @@
             if (data.user_info) {
                 document.getElementById('user-nickname').textContent = data.user_info.nickname || '未知用户';
                 document.getElementById('user-wxid').textContent = '微信号: ' + (data.user_info.wxid || '-');
+                
+                // 添加手机号显示
+                if (data.user_info.phone) {
+                    document.getElementById('user-phone').textContent = '手机号: ' + data.user_info.phone;
+                } else {
+                    document.getElementById('user-phone').textContent = '手机号: -';
+                }
                 
                 if (data.user_info.avatar) {
                     document.getElementById('user-avatar').src = data.user_info.avatar;

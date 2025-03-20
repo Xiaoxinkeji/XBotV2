@@ -43,10 +43,21 @@ async def check_login_status():
                         # 已登录
                         login_status["status"] = "success"
                         login_status["message"] = "登录成功"
+                        
+                        # 获取更详细的用户信息
+                        phone_number = result.get("phone", "")
+                        # 处理手机号显示
+                        if phone_number and len(phone_number) >= 11:
+                            # 确保格式化为标准手机号显示
+                            formatted_phone = phone_number
+                        else:
+                            formatted_phone = result.get("wxid", "")
+                        
                         login_status["user_info"] = {
                             "nickname": result.get("nickname", "未知"),
                             "avatar": result.get("avatar", ""),
-                            "wxid": result.get("wxid", "")
+                            "wxid": result.get("wxid", ""),
+                            "phone": formatted_phone
                         }
                         logger.info(f"微信登录成功: {result.get('nickname')}")
                         break

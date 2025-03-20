@@ -9,7 +9,8 @@ const ComponentDashboard = {
             messageChartData: null,
             wechatLoading: true,
             wechatConnected: false,
-            wechatNickname: ''
+            wechatNickname: '',
+            wechatPhone: ''
         }
     },
     mounted() {
@@ -72,34 +73,46 @@ const ComponentDashboard = {
             const messageChart = document.getElementById('message-chart');
             if (!messageChart) return;
             
-            const chart = echarts.init(messageChart);
+            // 确保echarts可用
+            if (typeof echarts === 'undefined') {
+                console.error('ECharts库未加载');
+                messageChart.innerHTML = '<div style="padding:20px;text-align:center;color:#F56C6C;">图表加载失败</div>';
+                return;
+            }
             
-            const dates = this.botStats.daily_message_count.map(item => item.date);
-            const counts = this.botStats.daily_message_count.map(item => item.count);
-            
-            const option = {
-                title: {
-                    text: '消息统计'
-                },
-                tooltip: {
-                    trigger: 'axis'
-                },
-                xAxis: {
-                    type: 'category',
-                    data: dates
-                },
-                yAxis: {
-                    type: 'value'
-                },
-                series: [{
-                    name: '消息数',
-                    type: 'line',
-                    data: counts,
-                    areaStyle: {}
-                }]
-            };
-            
-            chart.setOption(option);
+            try {
+                const chart = echarts.init(messageChart);
+                
+                const dates = this.botStats.daily_message_count.map(item => item.date);
+                const counts = this.botStats.daily_message_count.map(item => item.count);
+                
+                const option = {
+                    title: {
+                        text: '消息统计'
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: dates
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: [{
+                        name: '消息数',
+                        type: 'line',
+                        data: counts,
+                        areaStyle: {}
+                    }]
+                };
+                
+                chart.setOption(option);
+            } catch (error) {
+                console.error('渲染图表出错:', error);
+                messageChart.innerHTML = '<div style="padding:20px;text-align:center;color:#F56C6C;">图表渲染异常</div>';
+            }
         },
         
         formatTime(time) {
@@ -130,6 +143,7 @@ const ComponentDashboard = {
                     if (data.success && data.status === 'success' && data.user_info) {
                         this.wechatConnected = true;
                         this.wechatNickname = data.user_info.nickname || '未知用户';
+                        this.wechatPhone = data.user_info.phone || '';
                     } else {
                         this.wechatConnected = false;
                     }
@@ -193,6 +207,7 @@ const ComponentDashboard = {
                             {{ wechatConnected ? '已连接' : '未连接' }}
                         </div>
                         <p v-if="wechatConnected">{{ wechatNickname }}</p>
+                        <p v-if="wechatConnected && wechatPhone" class="wechat-phone">{{ wechatPhone }}</p>
                         <button v-if="!wechatConnected" @click="gotoWechatLogin" class="action-btn">
                             扫码登录
                         </button>

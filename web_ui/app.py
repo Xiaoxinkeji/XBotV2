@@ -253,4 +253,11 @@ async def wechat_login_page(request: Request):
     return templates.TemplateResponse(
         "wechat_login.html",
         {"request": request}
+    )
+
+@app.get("/offline")
+async def offline_page(request: Request):
+    return templates.TemplateResponse(
+        "offline.html",
+        {"request": request}
     ) 

@@ -124,67 +124,149 @@
     
     <!-- 检查依赖加载状态并显示简化版 -->
     <script>
-        window.addEventListener('DOMContentLoaded', function() {
-            // 检查核心依赖
-            const missingDependencies = [];
-            if (typeof Vue === 'undefined') missingDependencies.push('Vue');
-            if (typeof ElementPlus === 'undefined') missingDependencies.push('ElementPlus');
-            if (typeof axios === 'undefined') missingDependencies.push('Axios');
+        // 资源加载处理
+        document.addEventListener('DOMContentLoaded', function() {
+            const loader = document.createElement('div');
+            loader.className = 'loading-container';
+            loader.innerHTML = `
+                <img src="/static/img/logo.png" class="loading-logo" alt="XYBot Logo">
+                <div class="loading-text">正在加载资源...</div>
+            `;
+            document.body.appendChild(loader);
             
-            if (missingDependencies.length > 0) {
-                console.error('缺少核心依赖:', missingDependencies.join(', '));
+            // 加载必要的库
+            const requiredLibs = [
+                { name: 'Vue', path: '/static/vendor/vue.global.min.js', fallback: '/static/vendor/minimal-vue.js' },
+                { name: 'ElementPlus', path: '/static/vendor/element-plus.full.min.js' },
+                { name: 'axios', path: '/static/vendor/axios.min.js' },
+                { name: 'echarts', path: '/static/vendor/echarts.min.js', fallback: '/static/js/fallback-charts.js' }
+            ];
+            
+            // 顺序加载库
+            loadLibsSequentially(requiredLibs, 0, function(success, failed) {
+                if (failed.length > 0) {
+                    console.warn('以下库加载失败，将使用备用方案:', failed.join(', '));
+                }
                 
-                const container = document.getElementById('app');
-                container.innerHTML = `
-                    <div class="minimal-app">
-                        <header class="app-header">
-                            <h1>XYBot管理面板(简化版)</h1>
-                        </header>
-                        <div class="main-content">
-                            <h2>资源加载受限</h2>
-                            <p>系统无法加载以下前端依赖库: ${missingDependencies.join(', ')}</p>
-                            <div class="card-container">
-                                <div class="stat-card">
-                                    <h3>系统状态</h3>
-                                    <div class="stat-value">正在运行</div>
-                                    <p>微信接口: <a href="/api/health" target="_blank">查看状态</a></p>
-                                </div>
-                            </div>
-                            <p>
-                                <a href="/diagnostic" class="btn">查看诊断</a>
-                                <button onclick="window.location.reload()" id="refresh-btn">刷新页面</button>
-                            </p>
-                        </div>
-                    </div>
-                `;
-                return;
+                // 移除加载指示器
+                document.body.removeChild(loader);
+                
+                // 继续加载应用组件
+                loadAppComponents();
+            });
+        });
+        
+        // 顺序加载库函数
+        function loadLibsSequentially(libs, index, callback, successList = [], failedList = []) {
+            if (index >= libs.length) {
+                return callback(successList, failedList);
             }
             
-            // 正常加载组件和主应用
-            loadScripts([
+            const lib = libs[index];
+            
+            // 检查库是否已加载
+            if (window[lib.name]) {
+                console.log(`${lib.name} 已加载`);
+                successList.push(lib.name);
+                return loadLibsSequentially(libs, index + 1, callback, successList, failedList);
+            }
+            
+            // 加载主要版本
+            loadScript(lib.path, function(success) {
+                if (success) {
+                    console.log(`${lib.name} 加载成功`);
+                    successList.push(lib.name);
+                    loadLibsSequentially(libs, index + 1, callback, successList, failedList);
+                } else {
+                    console.warn(`${lib.name} 加载失败，尝试备用方案...`);
+                    
+                    // 如果有备用方案，尝试加载
+                    if (lib.fallback) {
+                        loadScript(lib.fallback, function(fallbackSuccess) {
+                            if (fallbackSuccess) {
+                                console.log(`${lib.name} 备用方案加载成功`);
+                                successList.push(lib.name + '(备用)');
+                            } else {
+                                console.error(`${lib.name} 及其备用方案均加载失败`);
+                                failedList.push(lib.name);
+                            }
+                            loadLibsSequentially(libs, index + 1, callback, successList, failedList);
+                        });
+                    } else {
+                        failedList.push(lib.name);
+                        loadLibsSequentially(libs, index + 1, callback, successList, failedList);
+                    }
+                }
+            });
+        }
+        
+        // 加载单个脚本
+        function loadScript(src, callback) {
+            const script = document.createElement('script');
+            script.src = src;
+            
+            script.onload = function() {
+                callback(true);
+            };
+            
+            script.onerror = function() {
+                callback(false);
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // 加载应用组件
+        function loadAppComponents() {
+            const components = [
                 '/static/js/dashboard.js',
                 '/static/js/plugins.js',
                 '/static/js/users.js',
                 '/static/js/messages.js',
                 '/static/js/status.js',
                 '/static/js/main.js'
-            ]);
-        });
-        
-        // 顺序加载脚本
-        function loadScripts(scripts) {
-            if (scripts.length === 0) return;
+            ];
             
-            const script = document.createElement('script');
-            script.src = scripts[0];
-            script.onload = function() {
-                loadScripts(scripts.slice(1));
-            };
-            script.onerror = function() {
-                console.error(`组件脚本加载失败: ${scripts[0]}`);
-                loadScripts(scripts.slice(1));
-            };
-            document.body.appendChild(script);
+            // 创建简单Vue应用容器
+            const appContainer = document.getElementById('app');
+            appContainer.innerHTML = `
+                <div id="fallback-app" style="display: none;">
+                    <header class="app-header">
+                        <h1>XYBot管理面板 (兼容模式)</h1>
+                    </header>
+                    <main class="fallback-main">
+                        <div class="status-card">
+                            <h2>系统状态</h2>
+                            <p>前端资源加载不完整，请检查网络连接或联系管理员。</p>
+                            <button onclick="window.location.reload()">刷新页面</button>
+                            <button onclick="window.location.href='/wechat-login'">微信登录</button>
+                            <button onclick="window.location.href='/simple'">简易版</button>
+                        </div>
+                    </main>
+                </div>
+            `;
+            
+            // 依次加载组件
+            loadComponentsSequentially(components, 0, function(loadedCount) {
+                if (loadedCount < components.length) {
+                    console.warn(`部分组件加载失败 (${loadedCount}/${components.length})`);
+                    document.getElementById('fallback-app').style.display = 'block';
+                }
+            });
+        }
+        
+        // 顺序加载组件
+        function loadComponentsSequentially(components, index, callback, loadedCount = 0) {
+            if (index >= components.length) {
+                return callback(loadedCount);
+            }
+            
+            loadScript(components[index], function(success) {
+                if (success) {
+                    loadedCount++;
+                }
+                loadComponentsSequentially(components, index + 1, callback, loadedCount);
+            });
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.1.0"></script>
