@@ -1,0 +1,11 @@
+server {
+    # 其他配置...
+    
+    # 确保静态文件配置正确
+    location /static {
+        alias /path/to/web_ui/static;
+        expires 7d;
+    }
+    
+    # 其他配置...
+} 

@@ -1,0 +1,6 @@
+# 递归设置web_ui目录的权限
+find web_ui -type d -exec chmod 755 {} \;
+find web_ui -type f -exec chmod 644 {} \;
+
+# 确保static目录及子目录可访问
+chmod -R 755 web_ui/static 
