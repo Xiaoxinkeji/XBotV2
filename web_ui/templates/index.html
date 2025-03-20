@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div id="app">
+        <el-container>
+            <el-aside width="200px">
+                <el-menu default-active="1" class="el-menu-vertical">
+                    <div class="logo-container">
+                        <img src="/static/img/logo.png" alt="XYBot" class="logo">
+                        <h2>XYBot管理面板</h2>
+                    </div>
+                    <el-menu-item index="1">
+                        <el-icon><i-ep-monitor /></el-icon>
+                        <span>控制面板</span>
+                    </el-menu-item>
+                    <el-menu-item index="2">
+                        <el-icon><i-ep-connection /></el-icon>
+                        <span>插件管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="3">
+                        <el-icon><i-ep-user /></el-icon>
+                        <span>用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="4">
+                        <el-icon><i-ep-chat-dot-round /></el-icon>
+                        <span>消息记录</span>
+                    </el-menu-item>
+                    <el-menu-item index="5">
+                        <el-icon><i-ep-data-analysis /></el-icon>
+                        <span>数据统计</span>
+                    </el-menu-item>
+                    <el-menu-item index="6">
+                        <el-icon><i-ep-setting /></el-icon>
+                        <span>系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header>
+                    <div class="header-right">
+                        <el-dropdown>
+                            <span class="el-dropdown-link">
+                                管理员 <el-icon><i-ep-arrow-down /></el-icon>
+                            </span>
+                            <template #dropdown>
+                                <el-dropdown-menu>
+                                    <el-dropdown-item>修改密码</el-dropdown-item>
+                                    <el-dropdown-item>退出登录</el-dropdown-item>
+                                </el-dropdown-menu>
+                            </template>
+                        </el-dropdown>
+                    </div>
+                </el-header>
+                
+                <el-main>
+                    <div id="content">
+                        <!-- 内容区将由前端路由控制 -->
+                        <component-dashboard v-if="current_page === 1"></component-dashboard>
+                        <component-plugins v-if="current_page === 2"></component-plugins>
+                        <component-users v-if="current_page === 3"></component-users>
+                        <component-messages v-if="current_page === 4"></component-messages>
+                        <component-stats v-if="current_page === 5"></component-stats>
+                        <component-settings v-if="current_page === 6"></component-settings>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html> 

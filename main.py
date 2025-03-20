@@ -5,6 +5,8 @@ import time
 import tomllib
 import traceback
 from pathlib import Path
+import threading
+import uvicorn
 
 from loguru import logger
 from watchdog.events import FileSystemEventHandler
@@ -103,6 +105,24 @@ async def main():
         except Exception as e:
             logger.error(f"发生错误: {e}")
             logger.error(traceback.format_exc())
+
+    # 启动Web服务器
+    def start_web_server():
+        try:
+            logger.info("正在启动Web管理界面...")
+            uvicorn.run(
+                "web_ui.app:app", 
+                host="0.0.0.0", 
+                port=8080,
+                log_level="info"
+            )
+        except Exception as e:
+            logger.error(f"Web服务启动失败: {str(e)}")
+    
+    # 在单独的线程中启动Web服务
+    web_thread = threading.Thread(target=start_web_server, daemon=True)
+    web_thread.start()
+    logger.success("Web管理界面已在 http://localhost:8080 启动")
 
 
 if __name__ == "__main__":
