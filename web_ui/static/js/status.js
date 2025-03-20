@@ -4,11 +4,18 @@ const ComponentStatus = {
         return {
             stats: null,
             loading: true,
-            refreshInterval: null
+            refreshInterval: null,
+            wechatStatus: {
+                loading: true,
+                connected: false,
+                nickname: '',
+                wxid: ''
+            }
         }
     },
     mounted() {
         this.fetchStatus();
+        this.getWechatStatus();
         
         // 每30秒自动刷新一次
         this.refreshInterval = setInterval(() => {
@@ -55,6 +62,53 @@ const ComponentStatus = {
             const minutes = uptime.minutes;
             
             return `${days}天 ${hours}小时 ${minutes}分钟`;
+        },
+        getWechatStatus() {
+            this.wechatStatus.loading = true;
+            
+            axios.get('/api/wechat/login/status')
+                .then(response => {
+                    const data = response.data;
+                    
+                    if (data.success && data.status === 'success' && data.user_info) {
+                        this.wechatStatus.connected = true;
+                        this.wechatStatus.nickname = data.user_info.nickname;
+                        this.wechatStatus.wxid = data.user_info.wxid;
+                    } else {
+                        this.wechatStatus.connected = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取微信状态失败:', error);
+                    this.wechatStatus.connected = false;
+                })
+                .finally(() => {
+                    this.wechatStatus.loading = false;
+                });
+        },
+        logoutWechat() {
+            if (!confirm('确定要退出微信登录吗？这将断开机器人连接。')) {
+                return;
+            }
+            
+            axios.post('/api/wechat/logout')
+                .then(response => {
+                    if (response.data.success) {
+                        this.$message.success('已成功退出微信登录');
+                        this.wechatStatus.connected = false;
+                        this.wechatStatus.nickname = '';
+                        this.wechatStatus.wxid = '';
+                    } else {
+                        this.$message.error('退出失败: ' + (response.data.message || '未知错误'));
+                    }
+                })
+                .catch(error => {
+                    console.error('退出登录出错:', error);
+                    this.$message.error('网络错误，退出失败');
+                });
+        },
+        gotoWechatLogin() {
+            window.location.href = '/wechat-login';
         }
     },
     template: `
@@ -119,25 +173,32 @@ const ComponentStatus = {
                             <span>微信状态</span>
                         </div>
                     </template>
-                    <div v-if="stats.wechat.logged_in" class="wechat-info">
-                        <div class="wechat-user">
-                            <img :src="stats.wechat.account_info.avatar" class="wechat-avatar" v-if="stats.wechat.account_info.avatar">
-                            <div class="wechat-avatar" v-else></div>
-                            <div class="wechat-details">
-                                <div class="wechat-nickname">{{ stats.wechat.account_info.nickname }}</div>
-                                <div class="wechat-wxid">{{ stats.wechat.account_info.wxid }}</div>
+                    <div v-if="wechatStatus.loading" class="loading-spinner"></div>
+                    <div v-else>
+                        <div v-if="wechatStatus.connected" class="wechat-info">
+                            <div class="wechat-user">
+                                <img :src="stats.wechat.account_info.avatar" class="wechat-avatar" v-if="stats.wechat.account_info.avatar">
+                                <div class="wechat-avatar" v-else></div>
+                                <div class="wechat-details">
+                                    <div class="wechat-nickname">{{ wechatStatus.nickname || '-' }}</div>
+                                    <div class="wechat-wxid">{{ wechatStatus.wxid || '-' }}</div>
+                                </div>
+                            </div>
+                            <div class="wechat-status">
+                                <el-tag type="success">已登录</el-tag>
                             </div>
                         </div>
-                        <div class="wechat-status">
-                            <el-tag type="success">已登录</el-tag>
+                        <div v-else class="wechat-info">
+                            <div class="wechat-status">
+                                <el-tag type="danger">未登录</el-tag>
+                            </div>
+                            <div class="wechat-error" v-if="stats.wechat.error">
+                                错误信息: {{ stats.wechat.error }}
+                            </div>
                         </div>
-                    </div>
-                    <div v-else class="wechat-info">
-                        <div class="wechat-status">
-                            <el-tag type="danger">未登录</el-tag>
-                        </div>
-                        <div class="wechat-error" v-if="stats.wechat.error">
-                            错误信息: {{ stats.wechat.error }}
+                        <div class="status-actions">
+                            <button v-if="wechatStatus.connected" @click="logoutWechat" class="btn-danger">退出登录</button>
+                            <button v-else @click="gotoWechatLogin" class="btn-primary">扫码登录</button>
                         </div>
                     </div>
                 </el-card>

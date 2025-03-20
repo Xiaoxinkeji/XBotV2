@@ -61,7 +61,7 @@ app.mount(
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 # 导入路由
-from web_ui.routers import plugins, users, stats, messages, status, dashboard, auth, health
+from web_ui.routers import plugins, users, stats, messages, status, dashboard, auth, health, wechat
 app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
@@ -70,6 +70,7 @@ app.include_router(status.router, prefix="/api/status", tags=["status"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(health.router, prefix="/api/health", tags=["health"])
+app.include_router(wechat.router, prefix="/api/wechat", tags=["wechat"])
 
 # 注册中间件
 app.middleware("http")(catch_exceptions_middleware)
@@ -244,5 +245,12 @@ async def minimal_page(request: Request):
 async def simple_page(request: Request):
     return templates.TemplateResponse(
         "simple.html",
+        {"request": request}
+    )
+
+@app.get("/wechat-login")
+async def wechat_login_page(request: Request):
+    return templates.TemplateResponse(
+        "wechat_login.html",
         {"request": request}
     ) 

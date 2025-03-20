@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XYBot - 微信扫码登录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #409EFF;
+            margin-bottom: 20px;
+        }
+        
+        .qrcode-container {
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            position: relative;
+        }
+        
+        .qrcode-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .status-message {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f0f9eb;
+            color: #67c23a;
+        }
+        
+        .status-message.warning {
+            background-color: #fdf6ec;
+            color: #e6a23c;
+        }
+        
+        .status-message.error {
+            background-color: #fef0f0;
+            color: #f56c6c;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0,0,0,0.1);
+            border-left-color: #409EFF;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .button {
+            background-color: #409EFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        
+        .button:hover {
+            background-color: #66b1ff;
+        }
+        
+        .button.secondary {
+            background-color: #909399;
+        }
+        
+        .success-info {
+            text-align: left;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f0f9eb;
+            margin: 15px 0;
+        }
+        
+        .success-info .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin-right: 15px;
+            float: left;
+        }
+        
+        .success-info .info {
+            margin-left: 75px;
+        }
+        
+        .success-info h3 {
+            margin: 0 0 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <h1>XYBot微信登录</h1>
+        
+        <!-- 登录等待中 -->
+        <div id="login-waiting" style="display: none;">
+            <div class="status-message">请使用微信扫描二维码登录</div>
+            <div class="qrcode-container">
+                <img id="qrcode-img" src="" alt="微信登录二维码">
+            </div>
+            <div>
+                <button class="button" onclick="refreshQRCode()">刷新二维码</button>
+                <button class="button secondary" onclick="window.location.href='/'">返回主页</button>
+            </div>
+        </div>
+        
+        <!-- 登录成功 -->
+        <div id="login-success" style="display: none;">
+            <div class="status-message">登录成功！</div>
+            <div class="success-info">
+                <img id="user-avatar" src="/static/img/avatar-default.png" class="avatar" alt="用户头像">
+                <div class="info">
+                    <h3 id="user-nickname">未知用户</h3>
+                    <p id="user-wxid">微信号: -</p>
+                </div>
+                <div style="clear:both;"></div>
+            </div>
+            <div>
+                <button class="button" onclick="window.location.href='/'">返回主页</button>
+                <button class="button secondary" onclick="logoutWechat()">退出登录</button>
+            </div>
+        </div>
+        
+        <!-- 登录失败 -->
+        <div id="login-failed" style="display: none;">
+            <div class="status-message error" id="error-message">登录失败</div>
+            <div>
+                <button class="button" onclick="refreshQRCode()">重新获取二维码</button>
+                <button class="button secondary" onclick="window.location.href='/'">返回主页</button>
+            </div>
+        </div>
+        
+        <!-- 加载中 -->
+        <div id="login-loading">
+            <div class="qrcode-container">
+                <div class="loading-overlay">
+                    <div class="spinner"></div>
+                    <div>正在获取登录二维码...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 当前登录状态
+        let currentStatus = 'idle';
+        let statusCheckInterval = null;
+        let lastTimestamp = 0;
+        
+        // 页面加载完成后获取二维码
+        window.onload = function() {
+            getLoginQRCode();
+        };
+        
+        // 获取登录二维码
+        function getLoginQRCode() {
+            showView('login-loading');
+            
+            fetch('/api/wechat/login/qrcode')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('qrcode-img').src = 'data:image/png;base64,' + data.qrcode;
+                        showView('login-waiting');
+                        startStatusCheck();
+                    } else {
+                        showError(data.message || '获取二维码失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取二维码出错:', error);
+                    showError('网络错误，无法获取二维码');
+                });
+        }
+        
+        // 刷新二维码
+        function refreshQRCode() {
+            stopStatusCheck();
+            getLoginQRCode();
+        }
+        
+        // 开始检查登录状态
+        function startStatusCheck() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+            }
+            
+            // 定期检查登录状态
+            statusCheckInterval = setInterval(checkLoginStatus, 3000);
+            currentStatus = 'waiting';
+        }
+        
+        // 停止检查登录状态
+        function stopStatusCheck() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+            }
+        }
+        
+        // 检查登录状态
+        function checkLoginStatus() {
+            fetch('/api/wechat/login/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 只有当时间戳变化时才处理更新
+                        if (data.timestamp > lastTimestamp) {
+                            lastTimestamp = data.timestamp;
+                            
+                            if (data.status === 'success') {
+                                handleLoginSuccess(data);
+                            } else if (data.status === 'failed') {
+                                handleLoginFailure(data.message);
+                            }
+                            // waiting状态不需要特殊处理，继续等待
+                        }
+                    } else {
+                        showError(data.message || '获取登录状态失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('检查登录状态出错:', error);
+                });
+        }
+        
+        // 处理登录成功
+        function handleLoginSuccess(data) {
+            stopStatusCheck();
+            currentStatus = 'success';
+            
+            // 填充用户信息
+            if (data.user_info) {
+                document.getElementById('user-nickname').textContent = data.user_info.nickname || '未知用户';
+                document.getElementById('user-wxid').textContent = '微信号: ' + (data.user_info.wxid || '-');
+                
+                if (data.user_info.avatar) {
+                    document.getElementById('user-avatar').src = data.user_info.avatar;
+                }
+            }
+            
+            showView('login-success');
+        }
+        
+        // 处理登录失败
+        function handleLoginFailure(message) {
+            stopStatusCheck();
+            currentStatus = 'failed';
+            showError(message || '登录失败');
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            showView('login-failed');
+        }
+        
+        // 显示指定视图，隐藏其他视图
+        function showView(viewId) {
+            const views = ['login-waiting', 'login-success', 'login-failed', 'login-loading'];
+            
+            views.forEach(id => {
+                document.getElementById(id).style.display = id === viewId ? 'block' : 'none';
+            });
+        }
+        
+        // 退出微信登录
+        function logoutWechat() {
+            if (!confirm('确定要退出微信登录吗？')) {
+                return;
+            }
+            
+            fetch('/api/wechat/logout', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('已成功退出登录');
+                    refreshQRCode();
+                } else {
+                    alert('退出失败: ' + (data.message || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('退出登录出错:', error);
+                alert('网络错误，退出失败');
+            });
+        }
+    </script>
+</body>
+</html> 

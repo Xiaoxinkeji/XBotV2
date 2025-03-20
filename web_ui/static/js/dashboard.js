@@ -6,12 +6,16 @@ const ComponentDashboard = {
             stats: null,
             botStats: null,
             recentMessages: [],
-            messageChartData: null
+            messageChartData: null,
+            wechatLoading: true,
+            wechatConnected: false,
+            wechatNickname: ''
         }
     },
     mounted() {
         this.fetchStats();
         this.fetchRecentMessages();
+        this.checkWechatStatus();
         
         // 每60秒刷新一次数据
         this.refreshInterval = setInterval(() => {
@@ -114,6 +118,33 @@ const ComponentDashboard = {
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        },
+        
+        checkWechatStatus() {
+            this.wechatLoading = true;
+            
+            axios.get('/api/wechat/login/status')
+                .then(response => {
+                    const data = response.data;
+                    
+                    if (data.success && data.status === 'success' && data.user_info) {
+                        this.wechatConnected = true;
+                        this.wechatNickname = data.user_info.nickname || '未知用户';
+                    } else {
+                        this.wechatConnected = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取微信状态失败:', error);
+                    this.wechatConnected = false;
+                })
+                .finally(() => {
+                    this.wechatLoading = false;
+                });
+        },
+        
+        gotoWechatLogin() {
+            window.location.href = '/wechat-login';
         }
     },
     template: `
@@ -151,6 +182,20 @@ const ComponentDashboard = {
                         <div class="stat-title">插件数量</div>
                         <div class="stat-value">{{ botStats ? botStats.plugin_count : 0 }}</div>
                         <div class="stat-detail" v-if="botStats">已启用: {{ botStats.enabled_plugin_count }}</div>
+                    </div>
+                </el-card>
+                
+                <el-card class="stat-card">
+                    <h3>微信状态</h3>
+                    <div v-if="wechatLoading" class="loading-spinner"></div>
+                    <div v-else>
+                        <div class="stat-value" :class="{'text-success': wechatConnected, 'text-danger': !wechatConnected}">
+                            {{ wechatConnected ? '已连接' : '未连接' }}
+                        </div>
+                        <p v-if="wechatConnected">{{ wechatNickname }}</p>
+                        <button v-if="!wechatConnected" @click="gotoWechatLogin" class="action-btn">
+                            扫码登录
+                        </button>
                     </div>
                 </el-card>
             </div>
