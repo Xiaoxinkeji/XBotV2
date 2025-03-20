@@ -10,7 +10,7 @@ echo -e "${GREEN}开始安装依赖...${NC}"
 
 # 安装不包含问题包的依赖
 echo -e "${YELLOW}安装基础依赖...${NC}"
-grep -v -E "xywechatpad-binary|matplotlib~=3.10.0" requirements.txt > requirements_filtered.txt
+grep -v -E "xywechatpad-binary|matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt
 echo "matplotlib~=3.9.0" >> requirements_filtered.txt
 pip install -r requirements_filtered.txt
 
