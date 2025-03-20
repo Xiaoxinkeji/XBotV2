@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y gcc python3-dev
 COPY requirements.txt .
 
 # 过滤掉问题依赖并安装其他依赖
-RUN grep -v "xywechatpad-binary" requirements.txt > requirements_filtered.txt && \
+RUN grep -v -E "xywechatpad-binary|matplotlib~=3.10.0" requirements.txt > requirements_filtered.txt && \
+    echo "matplotlib~=3.9.0" >> requirements_filtered.txt && \
     pip install --no-cache-dir -r requirements_filtered.txt
 
 # 复制项目文件
