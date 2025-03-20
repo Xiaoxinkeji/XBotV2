@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y gcc python3-dev
 COPY requirements.txt .
 
 # 过滤掉问题依赖并安装其他依赖
-RUN grep -v -E "xywechatpad-binary|matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt && \
+RUN grep -v -E "matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt && \
     echo "matplotlib~=3.9.0" >> requirements_filtered.txt && \
     pip install --no-cache-dir -r requirements_filtered.txt
 
@@ -22,22 +22,24 @@ RUN mkdir -p /app/web_ui/middlewares /app/web_ui/utils && \
     touch /app/web_ui/middlewares/__init__.py /app/web_ui/utils/__init__.py
 
 # 尝试安装本地包(如果存在)
-RUN if [ -d "xywechatpad-binary" ]; then \
-      echo "从本地安装xywechatpad-binary" && \
+RUN echo "尝试安装xywechatpad-binary..." && \
+    pip install xywechatpad-binary==1.1.0 --no-cache-dir || \
+    if [ -d "xywechatpad-binary" ]; then \
+      echo "尝试从本地安装xywechatpad-binary" && \
       pip install -e xywechatpad-binary; \
-    elif [ -d "wheels" ] && [ -f "$(find wheels -name 'xywechatpad-binary*.whl')" ]; then \
-      echo "从wheel安装xywechatpad-binary" && \
+    elif [ -d "wheels" ] && [ -f "$(find wheels -name 'xywechatpad-binary*.whl' 2>/dev/null)" ]; then \
+      echo "尝试从wheel安装xywechatpad-binary" && \
       pip install $(find wheels -name 'xywechatpad-binary*.whl'); \
     else \
-      echo "警告: xywechatpad-binary 包未找到，微信API功能将不可用"; \
+      echo "警告: 无法安装 xywechatpad-binary 包，微信API功能将不可用"; \
     fi
 
 # 设置环境变量
 ENV PYTHONPATH=/app
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 8080
 
 # 启动命令
-CMD ["uvicorn", "web_ui.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "web_ui.app:app", "--host", "0.0.0.0", "--port", "8080"]
 

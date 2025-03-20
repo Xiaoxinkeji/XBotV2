@@ -72,3 +72,9 @@ remember_me_days = 7  # "记住我"会话过期时间（天）
 # 安全设置
 cors_origins = ["*"]  # 允许的跨域来源，生产环境应设置为具体域名
 trusted_hosts = ["localhost", "127.0.0.1"]  # 信任的主机名
+
+[web_ui]
+enabled = true
+port = 8080
+host = "0.0.0.0"
+debug = false

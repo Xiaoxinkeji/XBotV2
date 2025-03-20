@@ -40,7 +40,7 @@ fi
 
 # 生成干净的要求文件
 echo -e "${YELLOW}生成过滤后的依赖文件...${NC}"
-grep -v -E "xywechatpad-binary|matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt
+grep -v -E "matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt
 echo "matplotlib~=3.9.0" >> requirements_filtered.txt
 
 echo -e "${GREEN}依赖检查和修复完成!${NC}"

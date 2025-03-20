@@ -39,7 +39,7 @@ if [ -f "scripts/manage_dependencies.py" ]; then
     python3 -m pip install -r requirements_fixed.txt
 else
     echo -e "${YELLOW}使用基本依赖过滤...${NC}"
-    grep -v -E "xywechatpad-binary|matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt
+    grep -v -E "matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt
     echo "matplotlib~=3.9.0" >> requirements_filtered.txt
     echo "pysilk-mod>=1.6.4" >> requirements_filtered.txt
     
@@ -50,6 +50,11 @@ fi
 # 尝试安装xywechatpad-binary
 echo -e "${YELLOW}检查特殊依赖...${NC}"
 
+# 首先尝试直接安装
+echo -e "${YELLOW}尝试从PyPI安装xywechatpad-binary...${NC}"
+if pip install xywechatpad-binary==1.1.0; then
+    echo -e "${GREEN}成功安装xywechatpad-binary${NC}"
+elif
 if [ -d "xywechatpad-binary" ]; then
     echo -e "${GREEN}找到xywechatpad-binary源代码，正在安装...${NC}"
     pip install -e xywechatpad-binary
@@ -68,5 +73,18 @@ else
     echo -e "${RED}未找到xywechatpad-binary，微信API功能将不可用${NC}"
 fi
 
+# 安装完成提示
 echo -e "${GREEN}安装完成!${NC}"
+
+# 检查端口配置
+if [ -f "scripts/check_port_config.py" ]; then
+    echo -e "${YELLOW}检查端口配置...${NC}"
+    python3 scripts/check_port_config.py
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}⚠️ 端口配置可能不一致，请检查上面的警告${NC}"
+    else
+        echo -e "${GREEN}✅ 端口配置一致${NC}"
+    fi
+fi
+
 echo -e "${YELLOW}现在您可以运行 'python3 main.py' 启动应用${NC}" 
