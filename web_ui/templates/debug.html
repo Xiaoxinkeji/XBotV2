@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .heading {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .status-ok {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .log-entry {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 4px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>系统调试页面</h1>
+    
+    <div class="card">
+        <h2 class="heading">基础检查</h2>
+        <div id="basic-checks">
+            <p>正在检查基本系统状态...</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2 class="heading">服务状态</h2>
+        <div id="service-status">
+            <p>正在检查服务状态...</p>
+        </div>
+        <button onclick="checkServices()">刷新服务状态</button>
+    </div>
+    
+    <div class="card">
+        <h2 class="heading">微信API</h2>
+        <div id="wechat-status">
+            <p>正在检查微信API状态...</p>
+        </div>
+        <button onclick="checkWechatApi()">刷新微信API状态</button>
+        <button onclick="restartWechatApi()">重启微信API</button>
+    </div>
+    
+    <div class="card">
+        <h2 class="heading">系统日志</h2>
+        <div id="system-logs">
+            <p>正在获取系统日志...</p>
+        </div>
+        <button onclick="getSystemLogs()">刷新日志</button>
+    </div>
+    
+    <script>
+        // 页面加载完成后执行检查
+        document.addEventListener('DOMContentLoaded', function() {
+            performBasicChecks();
+            checkServices();
+            checkWechatApi();
+            getSystemLogs();
+        });
+        
+        // 执行基本检查
+        async function performBasicChecks() {
+            try {
+                const response = await fetch('/api/debug/info');
+                const data = await response.json();
+                
+                let html = '<ul>';
+                
+                // 检查Python版本
+                html += `<li>Python版本: <span class="status status-ok">${data.data.python_version}</span></li>`;
+                
+                // 检查模块导入
+                html += '<li>关键模块导入: <ul>';
+                for (const [module, status] of Object.entries(data.data.imports)) {
+                    const statusClass = status === '成功' ? 'status-ok' : 'status-error';
+                    html += `<li>${module}: <span class="status ${statusClass}">${status}</span></li>`;
+                }
+                html += '</ul></li>';
+                
+                html += '</ul>';
+                document.getElementById('basic-checks').innerHTML = html;
+            } catch (error) {
+                document.getElementById('basic-checks').innerHTML = 
+                    `<p class="status status-error">检查失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 检查服务状态
+        async function checkServices() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                let html = '<ul>';
+                
+                // 检查Redis
+                const redisStatus = data.data.redis.connected;
+                const redisStatusClass = redisStatus ? 'status-ok' : 'status-error';
+                html += `<li>Redis: <span class="status ${redisStatusClass}">${redisStatus ? '已连接' : '未连接'}</span></li>`;
+                
+                // 检查微信API
+                const wechatStatus = data.data.wechat.connected;
+                const wechatStatusClass = wechatStatus ? 'status-ok' : 'status-error';
+                html += `<li>微信API: <span class="status ${wechatStatusClass}">${wechatStatus ? '已连接' : '未连接'}</span></li>`;
+                
+                html += '</ul>';
+                document.getElementById('service-status').innerHTML = html;
+            } catch (error) {
+                document.getElementById('service-status').innerHTML = 
+                    `<p class="status status-error">检查失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 检查微信API
+        async function checkWechatApi() {
+            try {
+                const response = await fetch('/api/wechat/status');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    let html = '<ul>';
+                    const wechatData = data.data;
+                    
+                    // 状态概览
+                    const statusClass = wechatData.status === 'ok' ? 'status-ok' : 'status-error';
+                    html += `<li>状态: <span class="status ${statusClass}">${wechatData.message}</span></li>`;
+                    
+                    // 是否运行
+                    const runningClass = wechatData.is_running ? 'status-ok' : 'status-error';
+                    html += `<li>服务运行: <span class="status ${runningClass}">${wechatData.is_running ? '是' : '否'}</span></li>`;
+                    
+                    // 是否登录
+                    const loginClass = wechatData.is_logged_in ? 'status-ok' : 'status-error';
+                    html += `<li>已登录: <span class="status ${loginClass}">${wechatData.is_logged_in ? '是' : '否'}</span></li>`;
+                    
+                    html += '</ul>';
+                    document.getElementById('wechat-status').innerHTML = html;
+                } else {
+                    document.getElementById('wechat-status').innerHTML = 
+                        `<p class="status status-error">获取状态失败: ${data.message}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('wechat-status').innerHTML = 
+                    `<p class="status status-error">检查失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 重启微信API
+        async function restartWechatApi() {
+            try {
+                document.getElementById('wechat-status').innerHTML = 
+                    `<p>正在重启微信API服务...</p>`;
+                
+                const response = await fetch('/api/wechat/reconnect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    document.getElementById('wechat-status').innerHTML = 
+                        `<p class="status status-ok">重启指令已发送: ${data.message}</p>`;
+                    
+                    // 3秒后重新检查状态
+                    setTimeout(checkWechatApi, 3000);
+                } else {
+                    document.getElementById('wechat-status').innerHTML = 
+                        `<p class="status status-error">重启失败: ${data.message}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('wechat-status').innerHTML = 
+                    `<p class="status status-error">重启失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 获取系统日志
+        async function getSystemLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    let html = '';
+                    for (const log of data.data.logs.slice(-10)) {
+                        html += `<div class="log-entry">${log}</div>`;
+                    }
+                    document.getElementById('system-logs').innerHTML = html;
+                } else {
+                    document.getElementById('system-logs').innerHTML = 
+                        `<p class="status status-error">获取日志失败: ${data.message}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('system-logs').innerHTML = 
+                    `<p class="status status-error">获取日志失败: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html> 

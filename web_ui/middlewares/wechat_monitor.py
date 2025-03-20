@@ -27,14 +27,15 @@ class WechatMonitorMiddleware(BaseHTTPMiddleware):
         self.start_monitor_task()
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """处理请求并监控微信API状态"""
-        # 对于API状态请求，尝试更新微信状态
+        """处理请求并监控微信API状态，但不阻塞主请求流程"""
+        # 对于API状态请求，创建异步任务检查微信状态，但不等待结果
         if request.url.path == "/api/status" or request.url.path == "/api/wechat/status":
             current_time = time.time()
             if current_time - self.last_check > 60:  # 至少间隔1分钟做一次检查
+                # 创建任务但不等待，避免阻塞主请求
                 asyncio.create_task(self.check_and_update_status())
         
-        # 继续处理请求
+        # 继续处理请求，不阻塞
         response = await call_next(request)
         return response
     

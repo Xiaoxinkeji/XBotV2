@@ -1,3 +1,83 @@
+/**
+ * 服务状态检查模块
+ */
+const StatusChecker = {
+    init() {
+        // 初始化时不阻塞页面加载
+        setTimeout(() => {
+            this.checkAllServices();
+        }, 1000);
+        
+        // 设置定期检查
+        setInterval(() => {
+            this.checkAllServices();
+        }, 30000); // 每30秒检查一次
+    },
+    
+    async checkAllServices() {
+        try {
+            const response = await fetch('/api/status');
+            if (!response.ok) {
+                throw new Error(`状态检查失败: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            if (data.code === 200) {
+                this.updateStatusDisplay(data.data);
+            } else {
+                console.error('获取状态失败:', data.message);
+            }
+        } catch (error) {
+            console.error('状态检查出错:', error);
+            // 显示错误但不阻塞界面
+            this.showError(error.message);
+        }
+    },
+    
+    updateStatusDisplay(statusData) {
+        // 更新各服务状态显示
+        if (statusData.redis) {
+            this.updateServiceStatus('redis-status', statusData.redis.connected);
+        }
+        
+        if (statusData.wechat) {
+            this.updateServiceStatus('wechat-status', statusData.wechat.connected);
+            
+            // 发布微信状态变化事件
+            const event = new CustomEvent('wechatStatusChange', {
+                detail: {
+                    newStatus: statusData.wechat.connected ? 'connected' : 'disconnected',
+                    data: statusData.wechat
+                }
+            });
+            document.dispatchEvent(event);
+        }
+    },
+    
+    updateServiceStatus(elementId, isConnected) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        
+        if (isConnected) {
+            element.textContent = '已连接';
+            element.className = 'status-connected';
+        } else {
+            element.textContent = '未连接';
+            element.className = 'status-disconnected';
+        }
+    },
+    
+    showError(message) {
+        console.error('状态检查错误:', message);
+        // 可以选择在页面上显示错误，但不应阻塞整体界面
+    }
+};
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    StatusChecker.init();
+});
+
 // 系统状态组件
 const ComponentStatus = {
     data() {

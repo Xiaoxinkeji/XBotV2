@@ -4,8 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
+    
+    <!-- 添加基本错误捕获 -->
+    <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error('全局错误:', message, source, lineno, colno);
+        // 显示错误信息在页面上
+        if (document.body) {
+            var errorDiv = document.createElement('div');
+            errorDiv.style.padding = '20px';
+            errorDiv.style.margin = '20px';
+            errorDiv.style.backgroundColor = '#ffebee';
+            errorDiv.style.border = '1px solid #f44336';
+            errorDiv.innerHTML = '<h2>页面加载错误</h2>' +
+                                '<p>错误信息: ' + message + '</p>' +
+                                '<p>源文件: ' + source + '</p>' +
+                                '<p>行号: ' + lineno + '</p>';
+            document.body.appendChild(errorDiv);
+        }
+        return false;
+    };
+    </script>
+    
     <!-- 首先加载资源加载器 -->
     <script src="/static/js/resource-loader.js"></script>
+    
     <!-- 样式表 -->
     <link rel="stylesheet" href="/static/vendor/element-plus.min.css">
     <link rel="stylesheet" href="/static/css/main.css">
@@ -91,88 +114,107 @@
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="loading-container">
-            <img src="/static/img/logo.png" class="loading-logo" alt="XYBot Logo">
-            <div class="loading-text">正在加载资源...</div>
-        </div>
+    <!-- 添加初始加载指示器 -->
+    <div id="loading-indicator" style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;">
+        <div style="font-size:24px;margin-bottom:20px;">加载中...</div>
+        <div style="width:50px;height:50px;border:5px solid #f3f3f3;border-top:5px solid #3498db;border-radius:50%;animation:spin 2s linear infinite;"></div>
     </div>
-
-    <!-- 应用程序入口点 -->
+    
+    <div id="app">
+        <!-- Vue应用将在这里挂载 -->
+    </div>
+    
+    <!-- 添加错误显示区域 -->
+    <div id="error-container" style="display:none;padding:20px;margin:20px;background-color:#ffebee;border:1px solid #f44336;">
+    </div>
+    
+    <style>
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+    
+    <!-- 基础脚本，确保按顺序加载 -->
     <script>
-        // 等待资源加载器准备就绪
-        function initializeApp() {
-            if (typeof Vue !== 'undefined') {
-                console.log('Vue 已加载，初始化应用');
-                const app = Vue.createApp({
-                    data() {
-                        return {
-                            activeComponent: 'dashboard'
-                        }
-                    },
-                    methods: {
-                        switchComponent(component) {
-                            this.activeComponent = component;
-                        }
+    // 基础脚本加载器
+    function loadScript(src, callback) {
+        var script = document.createElement('script');
+        script.src = src;
+        script.onload = callback;
+        script.onerror = function() {
+            console.error('脚本加载失败:', src);
+            showError('脚本加载失败: ' + src);
+        };
+        document.head.appendChild(script);
+    }
+    
+    function showError(message) {
+        var errorContainer = document.getElementById('error-container');
+        errorContainer.style.display = 'block';
+        errorContainer.innerHTML = '<h2>错误</h2><p>' + message + '</p>';
+        
+        // 隐藏加载指示器
+        document.getElementById('loading-indicator').style.display = 'none';
+    }
+    
+    // 按顺序加载核心脚本
+    document.addEventListener('DOMContentLoaded', function() {
+        loadScript('/static/vendor/vue.global.js', function() {
+            loadScript('/static/vendor/element-plus.min.js', function() {
+                // 其他脚本...
+                loadScript('/static/js/main.js', initializeApp);
+            });
+        });
+    });
+    
+    function initializeApp() {
+        // 隐藏加载指示器
+        document.getElementById('loading-indicator').style.display = 'none';
+        
+        // 初始化Vue应用
+        if (typeof Vue !== 'undefined') {
+            const app = Vue.createApp({
+                data() {
+                    return {
+                        activeComponent: 'dashboard'
                     }
-                });
-                
-                // 注册组件
-                if (typeof ComponentDashboard !== 'undefined') {
-                    app.component('dashboard', ComponentDashboard);
+                },
+                methods: {
+                    switchComponent(component) {
+                        this.activeComponent = component;
+                    }
                 }
-                if (typeof ComponentPlugins !== 'undefined') {
-                    app.component('plugins', ComponentPlugins);
-                }
-                if (typeof ComponentUsers !== 'undefined') {
-                    app.component('users', ComponentUsers);
-                }
-                if (typeof ComponentMessages !== 'undefined') {
-                    app.component('messages', ComponentMessages);
-                }
-                if (typeof ComponentStatus !== 'undefined') {
-                    app.component('status', ComponentStatus);
-                }
-                
-                // 使用ElementPlus (如果可用)
-                if (typeof ElementPlus !== 'undefined') {
-                    app.use(ElementPlus);
-                }
-                
-                // 挂载应用
-                app.mount('#app');
-            } else {
-                console.error('Vue 未加载，尝试备用初始化');
-                const appContainer = document.getElementById('app');
-                appContainer.innerHTML = `
-                    <div style="max-width:800px;margin:40px auto;padding:20px;text-align:center;">
-                        <h2>XYBot管理面板</h2>
-                        <p>前端资源加载失败，请尝试以下选项：</p>
-                        <div style="margin-top:20px;">
-                            <a href="/simple" style="display:inline-block;margin:10px;padding:10px 20px;background:#409EFF;color:white;text-decoration:none;border-radius:4px;">
-                                使用简易版
-                            </a>
-                            <a href="/offline" style="display:inline-block;margin:10px;padding:10px 20px;background:#67C23A;color:white;text-decoration:none;border-radius:4px;">
-                                运行诊断
-                            </a>
-                        </div>
-                    </div>
-                `;
+            });
+            
+            // 注册组件
+            if (typeof ComponentDashboard !== 'undefined') {
+                app.component('dashboard', ComponentDashboard);
             }
-        }
-        
-        // 检查Vue是否已加载，如果加载则初始化应用
-        function checkAndInitialize() {
-            if (typeof Vue !== 'undefined') {
-                initializeApp();
-            } else {
-                // 等待并再次检查
-                setTimeout(checkAndInitialize, 100);
+            if (typeof ComponentPlugins !== 'undefined') {
+                app.component('plugins', ComponentPlugins);
             }
+            if (typeof ComponentUsers !== 'undefined') {
+                app.component('users', ComponentUsers);
+            }
+            if (typeof ComponentMessages !== 'undefined') {
+                app.component('messages', ComponentMessages);
+            }
+            if (typeof ComponentStatus !== 'undefined') {
+                app.component('status', ComponentStatus);
+            }
+            
+            // 使用ElementPlus (如果可用)
+            if (typeof ElementPlus !== 'undefined') {
+                app.use(ElementPlus);
+            }
+            
+            // 挂载应用
+            app.mount('#app');
+        } else {
+            showError('Vue框架未加载，请检查网络连接');
         }
-        
-        // 页面加载完成后启动检查
-        window.addEventListener('load', checkAndInitialize);
+    }
     </script>
     
     <!-- 组件脚本 -->
@@ -180,7 +222,6 @@
     <script src="/static/js/users.js"></script>
     <script src="/static/js/messages.js"></script>
     <script src="/static/js/status.js"></script>
-    <script src="/static/js/main.js"></script>
 
     <!-- 在适当位置添加重连按钮 -->
     <div class="status-item">

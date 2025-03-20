@@ -191,33 +191,32 @@ async def logout_wechat():
 
 
 @router.post("/reconnect")
-async def reconnect_wechat_service(
-    background_tasks: BackgroundTasks,
-    current_user: Dict = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """
-    尝试重新连接微信服务
-    """
+async def reconnect_wechat():
+    """重启微信API服务"""
     try:
-        # 在后台任务中执行服务重启，避免阻塞API响应
-        background_tasks.add_task(restart_wechat_service)
+        # 尝试重启微信服务
+        from ..utils.service_recovery import restart_wechat_service
         
-        logger.info(f"用户 {current_user.get('username', 'unknown')} 请求重启微信服务")
+        result = await restart_wechat_service()
         
-        return {
-            "code": 200,
-            "message": "微信服务重连请求已接受，正在处理...",
-            "data": {
-                "task_status": "running",
-                "estimated_time": "约30秒"
+        if result:
+            return {
+                "code": 200,
+                "message": "微信服务重启指令已发送，正在重启",
+                "data": {"success": True}
             }
-        }
+        else:
+            return {
+                "code": 500,
+                "message": "微信服务重启失败，请查看日志获取详细信息",
+                "data": {"success": False}
+            }
     except Exception as e:
-        logger.error(f"请求重连微信服务时出错: {str(e)}")
+        logger.error(f"重启微信服务时出错: {str(e)}")
         return {
             "code": 500,
-            "message": f"请求微信服务重连失败: {str(e)}",
-            "data": None
+            "message": f"重启微信服务出错: {str(e)}",
+            "data": {"success": False, "error": str(e)}
         }
 
 @router.get("/connection-status")
