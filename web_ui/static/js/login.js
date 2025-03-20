@@ -90,5 +90,18 @@ const ComponentLogin = {
                 </div>
             </div>
         </div>
-    `
+    `,
+    mounted() {
+        console.log("登录组件已挂载");
+        
+        // 捕获全局Vue错误
+        this.$root.config.errorHandler = (err) => {
+            console.error("Vue错误:", err);
+        }
+        
+        // 检查Element Plus是否正确加载
+        if (!window.ElementPlus) {
+            console.error("Element Plus未正确加载!");
+        }
+    }
 }; 

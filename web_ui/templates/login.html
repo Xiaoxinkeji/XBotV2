@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
     <!-- 引入Element Plus样式 -->
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="/static/vendor/element-plus.min.css">
     <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/login.css">
@@ -14,13 +14,29 @@
 </head>
 <body>
     <div id="login-app">
-        <component-login></component-login>
+        <noscript>
+            <div class="fallback-login">
+                <h1>XYBot管理系统登录</h1>
+                <form action="/api/auth/login" method="post">
+                    <div>
+                        <label>用户名:</label>
+                        <input type="text" name="username">
+                    </div>
+                    <div>
+                        <label>密码:</label>
+                        <input type="password" name="password">
+                    </div>
+                    <button type="submit">登录</button>
+                </form>
+                <p>需要启用JavaScript以获得完整体验</p>
+            </div>
+        </noscript>
+        <!-- Vue组件将在这里渲染 -->
     </div>
     
-    <!-- 引入Vue3 -->
-    <script src="https://unpkg.com/vue@3.2.47/dist/vue.global.prod.js"></script>
-    <!-- 引入Element Plus -->
-    <script src="https://unpkg.com/element-plus@2.3.1/dist/index.full.min.js"></script>
+    <!-- 使用本地资源 -->
+    <script src="/static/vendor/vue.min.js"></script>
+    <script src="/static/vendor/element-plus.min.js"></script>
     <!-- 引入Axios -->
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     
