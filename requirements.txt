@@ -36,7 +36,7 @@ psutil>=5.9.5
 
 # WechatAPI 依赖
 # (确保这些与您的 WechatAPI 要求一致)
-# pysilk>=0.5  # 仅有0.0.1版本可用
+# pysilk>=0.5  # 与 xywechatpad-binary 不兼容，使用 pysilk-mod 代替
 pysilk-mod>=1.6.4  # 使用已在项目中使用的替代包
 pydub>=0.25.1
 qrcode>=7.4.2

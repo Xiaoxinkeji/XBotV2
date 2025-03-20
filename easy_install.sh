@@ -52,10 +52,9 @@ echo -e "${YELLOW}检查特殊依赖...${NC}"
 
 # 首先尝试直接安装
 echo -e "${YELLOW}尝试从PyPI安装xywechatpad-binary...${NC}"
-if pip install xywechatpad-binary==1.1.0; then
+if python3 scripts/download_wheel.py; then
     echo -e "${GREEN}成功安装xywechatpad-binary${NC}"
-elif
-if [ -d "xywechatpad-binary" ]; then
+elif [ -d "xywechatpad-binary" ]; then
     echo -e "${GREEN}找到xywechatpad-binary源代码，正在安装...${NC}"
     pip install -e xywechatpad-binary
     echo -e "${GREEN}xywechatpad-binary安装完成${NC}"
