@@ -1,26 +1,6 @@
 from sqlalchemy import Column, Integer, Text, DateTime, String, ForeignKey, Index
 from sqlalchemy.sql import func
-from sqlalchemy.orm import declarative_base
 from datetime import datetime
-
-# 创建声明性基类
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = "users"
-    
-    wxid = Column(String, primary_key=True)
-    nickname = Column(String)
-    remark = Column(String)
-    last_seen = Column(DateTime, default=datetime.now)
-    
-class GroupInfo(Base):
-    __tablename__ = "groups"
-    
-    wxid = Column(String, primary_key=True)
-    group_name = Column(String)
-    member_count = Column(Integer)
-    last_updated = Column(DateTime, default=datetime.now)
 
 class Message(Base):
     __tablename__ = "messages"
