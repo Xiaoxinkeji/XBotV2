@@ -75,8 +75,8 @@ def get_sync_session():
 
 # 数据库初始化函数
 async def init_db():
-    """初始化数据库表结构"""
-    global engine, async_session_factory  # 将global声明移到函数开头
+    """初始化数据库"""
+    # 导入模型类以确保它们被注册
     from database.models import Base
     
     try:
@@ -100,36 +100,4 @@ async def init_db():
             # 重新尝试初始化
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("使用SQLite备选数据库初始化成功")
-
-# 如果psutil导入失败，使用轻量级替代
-try:
-    import psutil
-except ImportError:
-    logger.warning("psutil导入失败，系统监控功能将受限")
-    # 创建一个简单的psutil模拟对象
-    class PsutilMock:
-        @staticmethod
-        def cpu_percent(*args, **kwargs):
-            return 0.0
-        
-        @staticmethod
-        def virtual_memory():
-            class MemInfo:
-                total = 0
-                available = 0
-                percent = 0
-                used = 0
-                free = 0
-            return MemInfo()
-        
-        @staticmethod
-        def disk_usage(path):
-            class DiskInfo:
-                total = 0
-                used = 0
-                free = 0
-                percent = 0
-            return DiskInfo()
-    
-    psutil = PsutilMock() 
+            logger.info("使用SQLite备选数据库初始化成功") 

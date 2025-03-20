@@ -18,6 +18,7 @@ import sys
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from datetime import datetime
+import psutil
 
 # 设置日志
 logging.basicConfig(

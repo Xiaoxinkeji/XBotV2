@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from web_ui.utils.system_utils import psutil, HAS_PSUTIL
+import psutil  # 直接导入psutil
 import platform
 import os
 import sys
@@ -54,14 +54,11 @@ async def get_system_status():
         minutes, seconds = divmod(remainder, 60)
         
         uptime_info = {
-            "start_time": bot_start_time.isoformat(),
-            "uptime": {
-                "days": int(days),
-                "hours": int(hours),
-                "minutes": int(minutes),
-                "seconds": int(seconds)
-            },
-            "uptime_string": f"{int(days)}天 {int(hours)}小时 {int(minutes)}分钟 {int(seconds)}秒"
+            "days": int(days),
+            "hours": int(hours),
+            "minutes": int(minutes),
+            "seconds": int(seconds),
+            "uptime_string": f"{int(days)}天 {int(hours)}小时 {int(minutes)}分钟"
         }
         
         # 微信状态
