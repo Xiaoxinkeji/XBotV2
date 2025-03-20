@@ -32,3 +32,4 @@ tomli~=2.0.1
 tomli_w~=1.0.0
 redis~=5.0.1
 python-dotenv~=1.0.0
+psutil==5.9.6
