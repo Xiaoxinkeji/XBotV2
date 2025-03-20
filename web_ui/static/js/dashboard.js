@@ -65,14 +65,17 @@ const ComponentDashboard = {
         renderMessageChart() {
             if (!this.botStats || !this.botStats.daily_message_count) return;
             
-            const chart = echarts.init(document.getElementById('message-trend-chart'));
+            const messageChart = document.getElementById('message-chart');
+            if (!messageChart) return;
+            
+            const chart = echarts.init(messageChart);
             
             const dates = this.botStats.daily_message_count.map(item => item.date);
             const counts = this.botStats.daily_message_count.map(item => item.count);
             
-            chart.setOption({
+            const option = {
                 title: {
-                    text: '消息趋势'
+                    text: '消息统计'
                 },
                 tooltip: {
                     trigger: 'axis'
@@ -85,27 +88,19 @@ const ComponentDashboard = {
                     type: 'value'
                 },
                 series: [{
-                    data: counts,
+                    name: '消息数',
                     type: 'line',
-                    smooth: true,
-                    areaStyle: {
-                        opacity: 0.2
-                    },
-                    itemStyle: {
-                        color: '#409EFF'
-                    },
-                    name: '消息数'
+                    data: counts,
+                    areaStyle: {}
                 }]
-            });
+            };
             
-            // 监听窗口大小变化，重绘图表
-            window.addEventListener('resize', () => {
-                chart.resize();
-            });
+            chart.setOption(option);
         },
         
-        formatTime(timeStr) {
-            const date = new Date(timeStr);
+        formatTime(time) {
+            if (!time) return '';
+            const date = new Date(time);
             return date.toLocaleString();
         },
         
@@ -122,195 +117,68 @@ const ComponentDashboard = {
         }
     },
     template: `
-        <div class="dashboard-container" v-loading="loading">
-            <el-row :gutter="20">
-                <!-- 系统状态卡片 -->
-                <el-col :xs="24" :sm="12" :md="6">
-                    <el-card class="status-card">
-                        <div class="status-icon">
-                            <i class="el-icon-monitor"></i>
-                        </div>
-                        <div class="status-info">
-                            <div class="status-title">系统状态</div>
-                            <div class="status-value" v-if="stats">
-                                <el-progress 
-                                    type="dashboard"
-                                    :percentage="Math.round(stats.cpu.percent)" 
-                                    :color="stats.cpu.percent > 80 ? '#F56C6C' : stats.cpu.percent > 60 ? '#E6A23C' : '#67C23A'">
-                                    <template #default>
-                                        <div class="progress-content">
-                                            <span>CPU</span>
-                                            <span class="progress-value">{{ Math.round(stats.cpu.percent) }}%</span>
-                                        </div>
-                                    </template>
-                                </el-progress>
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-                
-                <!-- 内存使用卡片 -->
-                <el-col :xs="24" :sm="12" :md="6">
-                    <el-card class="status-card">
-                        <div class="status-icon">
-                            <i class="el-icon-coin"></i>
-                        </div>
-                        <div class="status-info">
-                            <div class="status-title">内存使用</div>
-                            <div class="status-value" v-if="stats">
-                                <el-progress 
-                                    type="dashboard"
-                                    :percentage="Math.round(stats.memory.percent)" 
-                                    :color="stats.memory.percent > 80 ? '#F56C6C' : stats.memory.percent > 60 ? '#E6A23C' : '#67C23A'">
-                                    <template #default>
-                                        <div class="progress-content">
-                                            <span>MEM</span>
-                                            <span class="progress-value">{{ Math.round(stats.memory.percent) }}%</span>
-                                        </div>
-                                    </template>
-                                </el-progress>
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-                
-                <!-- 用户统计卡片 -->
-                <el-col :xs="24" :sm="12" :md="6">
-                    <el-card class="status-card">
-                        <div class="status-icon">
-                            <i class="el-icon-user"></i>
-                        </div>
-                        <div class="status-info">
-                            <div class="status-title">用户总数</div>
-                            <div class="status-value" v-if="botStats">
-                                <span class="big-number">{{ botStats.user_count || 0 }}</span>
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-                
-                <!-- 群组统计卡片 -->
-                <el-col :xs="24" :sm="12" :md="6">
-                    <el-card class="status-card">
-                        <div class="status-icon">
-                            <i class="el-icon-chat-dot-round"></i>
-                        </div>
-                        <div class="status-info">
-                            <div class="status-title">群组总数</div>
-                            <div class="status-value" v-if="botStats">
-                                <span class="big-number">{{ botStats.group_count || 0 }}</span>
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-            </el-row>
+        <div v-loading="loading">
+            <h2>系统概览</h2>
             
-            <el-row :gutter="20" style="margin-top: 20px;">
-                <!-- 消息趋势图表 -->
-                <el-col :xs="24" :md="16">
-                    <el-card>
-                        <template #header>
-                            <div class="card-header">
-                                <span>消息趋势</span>
-                            </div>
-                        </template>
-                        <div id="message-trend-chart" style="height: 300px;"></div>
-                    </el-card>
-                </el-col>
+            <div class="dashboard-cards">
+                <el-card class="stat-card">
+                    <div class="stat-icon"><i class="el-icon-message"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-title">今日消息</div>
+                        <div class="stat-value">{{ botStats ? botStats.recent_message_count : 0 }}</div>
+                    </div>
+                </el-card>
                 
-                <!-- 最近消息列表 -->
-                <el-col :xs="24" :md="8">
-                    <el-card>
-                        <template #header>
-                            <div class="card-header">
-                                <span>最近消息</span>
-                            </div>
-                        </template>
-                        <div class="recent-messages">
-                            <div v-for="(message, index) in recentMessages" :key="index" class="message-item">
-                                <div class="message-sender">
-                                    {{ message.sender.nickname }} 
-                                    <span class="message-time">{{ formatTime(message.timestamp) }}</span>
-                                </div>
-                                <div class="message-content">
-                                    {{ message.content }}
-                                </div>
-                            </div>
-                            
-                            <div v-if="recentMessages.length === 0" class="no-messages">
-                                暂无消息
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-            </el-row>
+                <el-card class="stat-card">
+                    <div class="stat-icon"><i class="el-icon-user"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-title">用户总数</div>
+                        <div class="stat-value">{{ botStats ? botStats.user_count : 0 }}</div>
+                    </div>
+                </el-card>
+                
+                <el-card class="stat-card">
+                    <div class="stat-icon"><i class="el-icon-s-cooperation"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-title">群组总数</div>
+                        <div class="stat-value">{{ botStats ? botStats.group_count : 0 }}</div>
+                    </div>
+                </el-card>
+                
+                <el-card class="stat-card">
+                    <div class="stat-icon"><i class="el-icon-cpu"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-title">插件数量</div>
+                        <div class="stat-value">{{ botStats ? botStats.plugin_count : 0 }}</div>
+                        <div class="stat-detail" v-if="botStats">已启用: {{ botStats.enabled_plugin_count }}</div>
+                    </div>
+                </el-card>
+            </div>
             
-            <el-row :gutter="20" style="margin-top: 20px;">
-                <!-- 插件统计 -->
-                <el-col :xs="24" :md="12">
-                    <el-card>
-                        <template #header>
-                            <div class="card-header">
-                                <span>插件统计</span>
-                            </div>
-                        </template>
-                        <div class="plugin-stats" v-if="botStats">
-                            <div class="stat-row">
-                                <span>插件总数:</span>
-                                <span>{{ botStats.plugin_count || 0 }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span>已启用插件:</span>
-                                <span>{{ botStats.enabled_plugin_count || 0 }}</span>
-                            </div>
-                            <div class="plugin-list" v-if="botStats.top_plugins">
-                                <h4>最活跃插件</h4>
-                                <div v-for="(plugin, index) in botStats.top_plugins" :key="index" class="plugin-item">
-                                    <span>{{ plugin.name }}</span>
-                                    <span>{{ plugin.call_count }} 次调用</span>
-                                </div>
-                            </div>
+            <div class="dashboard-charts">
+                <el-card class="chart-card">
+                    <div id="message-chart" style="width: 100%; height: 300px;"></div>
+                </el-card>
+            </div>
+            
+            <div class="dashboard-tables">
+                <el-card class="table-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>最近消息</span>
                         </div>
-                    </el-card>
-                </el-col>
-                
-                <!-- 系统信息 -->
-                <el-col :xs="24" :md="12">
-                    <el-card>
-                        <template #header>
-                            <div class="card-header">
-                                <span>系统信息</span>
-                            </div>
-                        </template>
-                        <div class="system-info" v-if="stats">
-                            <div class="info-row">
-                                <span>运行时间:</span>
-                                <span>{{ stats.uptime.uptime_string }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span>操作系统:</span>
-                                <span>{{ stats.system.os }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span>Python版本:</span>
-                                <span>{{ stats.system.python }}</span>
-                            </div>
-                            <div class="info-row" v-if="stats.wechat.logged_in && stats.wechat.account_info">
-                                <span>微信账号:</span>
-                                <span>{{ stats.wechat.account_info.nickname }} ({{ stats.wechat.account_info.wxid }})</span>
-                            </div>
-                            <div class="info-row" v-if="stats.redis.connected">
-                                <span>Redis状态:</span>
-                                <span class="success-text">正常</span>
-                            </div>
-                            <div class="info-row" v-if="!stats.redis.connected">
-                                <span>Redis状态:</span>
-                                <span class="error-text">异常</span>
-                            </div>
-                        </div>
-                    </el-card>
-                </el-col>
-            </el-row>
+                    </template>
+                    <el-table :data="recentMessages" style="width: 100%">
+                        <el-table-column prop="sender_name" label="发送者" width="120"></el-table-column>
+                        <el-table-column prop="content" label="内容"></el-table-column>
+                        <el-table-column width="160">
+                            <template #default="scope">
+                                {{ formatTime(scope.row.timestamp) }}
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </el-card>
+            </div>
         </div>
     `
 }; 

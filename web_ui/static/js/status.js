@@ -2,7 +2,7 @@
 const ComponentStatus = {
     data() {
         return {
-            status: null,
+            stats: null,
             loading: true,
             refreshInterval: null
         }
@@ -27,7 +27,7 @@ const ComponentStatus = {
             
             axios.get('/api/status')
                 .then(response => {
-                    this.status = response.data.data;
+                    this.stats = response.data.data;
                     this.loading = false;
                 })
                 .catch(error => {
@@ -36,140 +36,164 @@ const ComponentStatus = {
                     this.loading = false;
                 });
         },
-        refreshStatus() {
-            this.fetchStatus();
-        },
         formatBytes(bytes, decimals = 2) {
             if (bytes === 0) return '0 Bytes';
             
             const k = 1024;
             const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
             
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        },
+        formatUptime(uptime) {
+            if (!uptime) return '未知';
+            
+            const days = uptime.days;
+            const hours = uptime.hours;
+            const minutes = uptime.minutes;
+            
+            return `${days}天 ${hours}小时 ${minutes}分钟`;
         }
     },
     template: `
-        <div>
+        <div v-loading="loading">
             <h2>系统状态</h2>
             
-            <div class="action-bar">
-                <el-button type="primary" @click="refreshStatus" :loading="loading">刷新</el-button>
-            </div>
-            
-            <div class="status-container" v-loading="loading" v-if="status">
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-card class="status-card">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>系统信息</span>
-                                </div>
-                            </template>
-                            <div class="system-info">
-                                <p><strong>操作系统:</strong> {{ status.system.os }}</p>
-                                <p><strong>Python版本:</strong> {{ status.system.python }}</p>
-                                <p><strong>主机名:</strong> {{ status.system.hostname }}</p>
-                                <p><strong>启动时间:</strong> {{ status.uptime.start_time }}</p>
-                                <p><strong>运行时长:</strong> {{ status.uptime.uptime_string }}</p>
-                            </div>
-                        </el-card>
-                    </el-col>
-                    
-                    <el-col :span="12">
-                        <el-card class="status-card">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>资源使用</span>
-                                </div>
-                            </template>
-                            <div class="resource-usage">
-                                <div class="resource-item">
-                                    <span>CPU使用率</span>
-                                    <el-progress 
-                                        :percentage="status.cpu.percent"
-                                        :color="status.cpu.percent > 80 ? '#F56C6C' : status.cpu.percent > 60 ? '#E6A23C' : '#67C23A'">
-                                    </el-progress>
-                                </div>
-                                <div class="resource-item">
-                                    <span>内存使用率</span>
-                                    <el-progress 
-                                        :percentage="status.memory.percent"
-                                        :color="status.memory.percent > 80 ? '#F56C6C' : status.memory.percent > 60 ? '#E6A23C' : '#67C23A'">
-                                    </el-progress>
-                                    <div class="memory-details">
-                                        <small>已用: {{ formatBytes(status.memory.used) }} / 总计: {{ formatBytes(status.memory.total) }}</small>
-                                    </div>
-                                </div>
-                                <div class="resource-item">
-                                    <span>磁盘使用率</span>
-                                    <el-progress 
-                                        :percentage="status.disk.percent"
-                                        :color="status.disk.percent > 80 ? '#F56C6C' : status.disk.percent > 60 ? '#E6A23C' : '#67C23A'">
-                                    </el-progress>
-                                    <div class="disk-details">
-                                        <small>已用: {{ formatBytes(status.disk.used) }} / 总计: {{ formatBytes(status.disk.total) }}</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </el-card>
-                    </el-col>
-                </el-row>
+            <div v-if="stats" class="status-container">
+                <el-card class="system-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>系统信息</span>
+                            <el-button size="small" @click="fetchStatus">刷新</el-button>
+                        </div>
+                    </template>
+                    <div class="info-item">
+                        <span class="label">操作系统:</span>
+                        <span class="value">{{ stats.system.os }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">主机名:</span>
+                        <span class="value">{{ stats.system.hostname }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Python版本:</span>
+                        <span class="value">{{ stats.system.python }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">运行时间:</span>
+                        <span class="value">{{ stats.uptime.uptime_string }}</span>
+                    </div>
+                </el-card>
                 
-                <el-row :gutter="20" style="margin-top: 20px;">
-                    <el-col :span="12">
-                        <el-card class="status-card">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>微信账号状态</span>
-                                </div>
-                            </template>
-                            <div class="wechat-status">
-                                <div v-if="status.wechat.logged_in">
-                                    <p><i class="el-icon-success" style="color: #67C23A;"></i> 已登录</p>
-                                    <p v-if="status.wechat.account_info">
-                                        <strong>微信ID:</strong> {{ status.wechat.account_info.wxid }}<br>
-                                        <strong>昵称:</strong> {{ status.wechat.account_info.nickname }}
-                                    </p>
-                                </div>
-                                <div v-else>
-                                    <p><i class="el-icon-error" style="color: #F56C6C;"></i> 未登录</p>
-                                    <p v-if="status.wechat.error">
-                                        <strong>错误信息:</strong> {{ status.wechat.error }}
-                                    </p>
-                                </div>
+                <el-card class="resource-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>资源使用</span>
+                        </div>
+                    </template>
+                    <div class="resource-group">
+                        <div class="resource-label">CPU使用率:</div>
+                        <el-progress :percentage="stats.cpu.percent" :color="cpuColor"></el-progress>
+                    </div>
+                    <div class="resource-group">
+                        <div class="resource-label">内存使用率:</div>
+                        <el-progress :percentage="stats.memory.percent" :color="memoryColor"></el-progress>
+                        <div class="resource-detail">
+                            {{ formatBytes(stats.memory.used) }} / {{ formatBytes(stats.memory.total) }}
+                        </div>
+                    </div>
+                    <div class="resource-group">
+                        <div class="resource-label">磁盘使用率:</div>
+                        <el-progress :percentage="stats.disk.percent" :color="diskColor"></el-progress>
+                        <div class="resource-detail">
+                            {{ formatBytes(stats.disk.used) }} / {{ formatBytes(stats.disk.total) }}
+                        </div>
+                    </div>
+                </el-card>
+                
+                <el-card class="wechat-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>微信状态</span>
+                        </div>
+                    </template>
+                    <div v-if="stats.wechat.logged_in" class="wechat-info">
+                        <div class="wechat-user">
+                            <img :src="stats.wechat.account_info.avatar" class="wechat-avatar" v-if="stats.wechat.account_info.avatar">
+                            <div class="wechat-avatar" v-else></div>
+                            <div class="wechat-details">
+                                <div class="wechat-nickname">{{ stats.wechat.account_info.nickname }}</div>
+                                <div class="wechat-wxid">{{ stats.wechat.account_info.wxid }}</div>
                             </div>
-                        </el-card>
-                    </el-col>
-                    
-                    <el-col :span="12">
-                        <el-card class="status-card">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>Redis状态</span>
-                                </div>
-                            </template>
-                            <div class="redis-status">
-                                <div v-if="status.redis.connected">
-                                    <p><i class="el-icon-success" style="color: #67C23A;"></i> 已连接</p>
-                                    <p>
-                                        <strong>内存使用:</strong> {{ status.redis.memory_used }}<br>
-                                        <strong>客户端连接数:</strong> {{ status.redis.clients_connected }}
-                                    </p>
-                                </div>
-                                <div v-else>
-                                    <p><i class="el-icon-error" style="color: #F56C6C;"></i> 连接失败</p>
-                                    <p v-if="status.redis.error">
-                                        <strong>错误信息:</strong> {{ status.redis.error }}
-                                    </p>
-                                </div>
-                            </div>
-                        </el-card>
-                    </el-col>
-                </el-row>
+                        </div>
+                        <div class="wechat-status">
+                            <el-tag type="success">已登录</el-tag>
+                        </div>
+                    </div>
+                    <div v-else class="wechat-info">
+                        <div class="wechat-status">
+                            <el-tag type="danger">未登录</el-tag>
+                        </div>
+                        <div class="wechat-error" v-if="stats.wechat.error">
+                            错误信息: {{ stats.wechat.error }}
+                        </div>
+                    </div>
+                </el-card>
+                
+                <el-card class="redis-card">
+                    <template #header>
+                        <div class="card-header">
+                            <span>Redis状态</span>
+                        </div>
+                    </template>
+                    <div v-if="stats.redis.connected" class="redis-info">
+                        <div class="info-item">
+                            <span class="label">状态:</span>
+                            <el-tag type="success">已连接</el-tag>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">内存使用:</span>
+                            <span class="value">{{ stats.redis.memory_used }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">客户端连接:</span>
+                            <span class="value">{{ stats.redis.clients_connected }}</span>
+                        </div>
+                    </div>
+                    <div v-else class="redis-info">
+                        <div class="info-item">
+                            <span class="label">状态:</span>
+                            <el-tag type="danger">未连接</el-tag>
+                        </div>
+                        <div class="redis-error" v-if="stats.redis.error">
+                            错误信息: {{ stats.redis.error }}
+                        </div>
+                    </div>
+                </el-card>
             </div>
         </div>
-    `
+    `,
+    computed: {
+        cpuColor() {
+            const percent = this.stats?.cpu?.percent || 0;
+            return this.getColorByPercent(percent);
+        },
+        memoryColor() {
+            const percent = this.stats?.memory?.percent || 0;
+            return this.getColorByPercent(percent);
+        },
+        diskColor() {
+            const percent = this.stats?.disk?.percent || 0;
+            return this.getColorByPercent(percent);
+        }
+    },
+    methods: {
+        getColorByPercent(percent) {
+            if (percent < 70) return '#67C23A';  // 绿色
+            if (percent < 90) return '#E6A23C';  // 黄色
+            return '#F56C6C';  // 红色
+        }
+    }
 }; 
