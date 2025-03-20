@@ -137,49 +137,56 @@ def get_sessions():
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        # 使用函数获取会话存储
-        SESSIONS = get_sessions()
-        
-        # 不需要验证的路径
-        exempt_paths = ["/login", "/api/auth/login", "/api/auth/check", "/health", "/static"]
-        
-        # 检查路径是否需要验证
-        is_exempt = False
-        for path in exempt_paths:
-            if request.url.path.startswith(path):
-                is_exempt = True
-                break
-        
-        if is_exempt:
-            return await call_next(request)
-        
-        # 检查是否有有效的会话
-        session_id = request.cookies.get("session_id")
-        
-        # API请求直接返回401错误
-        if request.url.path.startswith("/api/"):
-            if not session_id or session_id not in SESSIONS:
-                return JSONResponse(
-                    status_code=401,
-                    content={"success": False, "message": "未登录或会话已过期"}
-                )
+        try:
+            # 使用函数获取会话存储
+            SESSIONS = get_sessions()
             
-            # 检查会话是否过期
-            session = SESSIONS.get(session_id)
-            if datetime.now() > session.get("expires", datetime.now()):
-                SESSIONS.pop(session_id, None)
-                return JSONResponse(
-                    status_code=401,
-                    content={"success": False, "message": "会话已过期"}
-                )
-        
-        # 页面请求重定向到登录页
-        elif not session_id or session_id not in SESSIONS:
-            return RedirectResponse(url="/login")
-        
-        # 通过验证，继续处理请求
-        response = await call_next(request)
-        return response
+            # 不需要验证的路径
+            exempt_paths = ["/login", "/api/auth/login", "/api/auth/check", "/health", "/static"]
+            
+            # 检查路径是否需要验证
+            is_exempt = False
+            for path in exempt_paths:
+                if request.url.path.startswith(path):
+                    is_exempt = True
+                    break
+            
+            if is_exempt:
+                return await call_next(request)
+            
+            # 检查是否有有效的会话
+            session_id = request.cookies.get("session_id")
+            
+            # API请求直接返回401错误
+            if request.url.path.startswith("/api/"):
+                if not session_id or session_id not in SESSIONS:
+                    return JSONResponse(
+                        status_code=401,
+                        content={"success": False, "message": "未登录或会话已过期"}
+                    )
+                
+                # 检查会话是否过期
+                session = SESSIONS.get(session_id)
+                if datetime.now() > session.get("expires", datetime.now()):
+                    SESSIONS.pop(session_id, None)
+                    return JSONResponse(
+                        status_code=401,
+                        content={"success": False, "message": "会话已过期"}
+                    )
+            
+            # 页面请求重定向到登录页
+            elif not session_id or session_id not in SESSIONS:
+                return RedirectResponse(url="/login")
+            
+            # 通过验证，继续处理请求
+            response = await call_next(request)
+            return response
+        except Exception as e:
+            logger.error(f"认证中间件错误: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "服务器内部错误"}
+            )
 
 # 添加认证中间件
 app.add_middleware(AuthMiddleware)
