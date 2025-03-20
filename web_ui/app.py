@@ -133,8 +133,12 @@ async def shutdown_event():
 @app.on_event("startup")
 async def startup_db_client():
     from database.session import init_db
-    await init_db()
-    logger.info("数据库初始化完成")
+    try:
+        await init_db()
+        logger.info("数据库初始化完成")
+    except Exception as e:
+        logger.error(f"数据库初始化失败: {str(e)}")
+        logger.warning("部分功能可能无法正常工作")
 
 # 将导入移到函数内部以避免循环导入
 def get_sessions():
