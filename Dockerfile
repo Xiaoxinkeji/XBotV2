@@ -11,6 +11,11 @@ ENV IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     redis-server \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    build-essential \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制 Redis 配置
@@ -28,6 +33,9 @@ COPY . .
 # 启动脚本
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
+
+# 暴露端口
+EXPOSE 8080
 
 CMD ["./entrypoint.sh"]
 
