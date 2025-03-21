@@ -1,13 +1,20 @@
 services:
   xybotv2:
+    build: .
     image: henryxiaoyang/xybotv2:latest
     container_name: XYBotV2
     restart: on-failure:3
     ports:
       - "8080:8080"  # Web管理界面端口
     volumes:
-      - xybotv2:/app
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./resource:/app/resource
+      - ./logs:/var/log/xbotv2
       - redis_data:/var/lib/redis
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
 
 volumes:
   redis_data:

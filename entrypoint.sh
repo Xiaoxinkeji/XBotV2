@@ -1,9 +1,34 @@
 #!/bin/bash
-# 启动Redis服务
-redis-server /etc/redis/redis.conf &
+set -e
 
-# 确保日志目录存在
-mkdir -p logs
+echo "Starting XBotV2 services..."
 
-# 启动机器人
-python main.py
+# 确保Redis服务正在运行
+service redis-server start
+
+# 创建必要的目录
+echo "Setting up directories..."
+mkdir -p /var/log/xbotv2
+mkdir -p /app/logs
+mkdir -p /app/resource
+mkdir -p /app/database
+
+# 设置日志目录权限
+chmod -R 755 /var/log/xbotv2
+chmod -R 755 /app/logs
+
+# 如果是首次运行，创建样例日志文件
+if [ ! -f "/app/logs/xbotv2.log" ]; then
+    echo "Creating sample log file..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] XBotV2服务启动" > /app/logs/xbotv2.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] 日志系统初始化成功" >> /app/logs/xbotv2.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] 等待登录微信..." >> /app/logs/xbotv2.log
+fi
+
+# 设置Python环境变量
+export PYTHONUNBUFFERED=1
+
+# 启动Web服务
+echo "Starting web service..."
+cd /app
+python -m web.app

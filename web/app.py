@@ -101,6 +101,13 @@ class StatusResponse(BaseModel):
     plugin_count: int
     message_count: int
 
+# 日志缓存，避免频繁读取磁盘
+_logs_cache = {
+    "logs": [],
+    "last_update": 0,
+    "cache_timeout": 5  # 缓存有效期（秒）
+}
+
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
     if auth_enabled:
         correct_username = secrets.compare_digest(credentials.username, auth_username)
@@ -767,6 +774,14 @@ def get_qrcode_from_logs():
 # 获取最近日志内容
 def get_recent_logs(limit=10):
     """获取最近的日志内容"""
+    global _logs_cache
+    
+    # 检查缓存是否有效
+    current_time = time.time()
+    if current_time - _logs_cache["last_update"] < _logs_cache["cache_timeout"] and _logs_cache["logs"]:
+        logger.info(f"使用缓存的日志数据，共 {len(_logs_cache['logs'])} 条")
+        return _logs_cache["logs"][:limit]
+        
     logger.info(f"获取最近 {limit} 条日志")
     
     # 复用获取日志文件的逻辑
@@ -808,18 +823,23 @@ def get_recent_logs(limit=10):
     if not log_files:
         # 如果没有找到任何日志文件，创建一个样例日志
         logger.warning("未找到任何日志文件，返回样例日志")
-        return [
+        sample_logs = [
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "WARNING", "content": "未找到任何日志文件"},
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "请检查应用是否已启动或日志路径是否正确"},
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "可能的日志路径: " + ", ".join(str(p) for p in possible_log_dirs)},
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF"}
         ]
+        # 更新缓存
+        _logs_cache["logs"] = sample_logs
+        _logs_cache["last_update"] = current_time
+        return sample_logs
     
     # 读取最新的日志文件
     recent_logs = []
     found_qrcode_url = False
     
-    for log_file in log_files:
+    # 只读取最新的文件，避免处理过多
+    for log_file in log_files[:3]:
         try:
             if not log_file.exists() or log_file.stat().st_size == 0:
                 continue
@@ -831,6 +851,8 @@ def get_recent_logs(limit=10):
             with open(log_file, "rb") as f:
                 if file_size > read_size:
                     f.seek(file_size - read_size)
+                    # 跳过第一行，可能是不完整的
+                    f.readline()
                 chunk = f.read().decode('utf-8', errors='ignore')
                 lines = chunk.splitlines()
             
@@ -926,6 +948,10 @@ def get_recent_logs(limit=10):
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "WARNING", "content": "日志文件存在但没有提取到有效日志内容"},
             {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF"}
         ]
+    
+    # 更新缓存
+    _logs_cache["logs"] = formatted_logs
+    _logs_cache["last_update"] = current_time
     
     # 只返回最近的limit条日志
     return formatted_logs[-limit:]
@@ -1363,7 +1389,7 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
         return {"success": False, "message": f"保存配置失败: {str(e)}"}
 
 @app.get("/api/logs")
-async def get_logs_api(limit: int = 10, username: str = Depends(get_current_username)):
+async def get_logs_api(limit: int = 10, search: str = None, level: str = None, username: str = Depends(get_current_username)):
     """获取最近的日志接口"""
     try:
         # 确保日志目录存在
@@ -1376,13 +1402,56 @@ async def get_logs_api(limit: int = 10, username: str = Depends(get_current_user
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 初始化日志文件\n")
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF\n")
         
+        # 检查日志文件数量，如果超过20个，则保留最新的10个
+        try:
+            manage_log_files(logs_dir)
+        except Exception as e:
+            logger.warning(f"管理日志文件时出错: {e}")
+            
         logs = get_recent_logs(limit)
+        
+        # 根据搜索条件过滤日志
+        if search or level:
+            logs = filter_logs(logs, search, level)
+            
         logger.info(f"API获取到 {len(logs)} 条日志")
         return {"success": True, "logs": logs}
     except Exception as e:
         logger.error(f"获取日志失败: {e}")
         logger.error(traceback.format_exc())
         return {"success": False, "message": f"获取日志失败: {str(e)}"}
+
+def filter_logs(logs, search=None, level=None):
+    """根据搜索条件过滤日志"""
+    filtered_logs = logs
+    
+    # 按日志级别过滤
+    if level:
+        filtered_logs = [log for log in filtered_logs if log.get("level", "").upper() == level.upper()]
+    
+    # 按关键词搜索
+    if search:
+        filtered_logs = [log for log in filtered_logs if search.lower() in log.get("content", "").lower()]
+    
+    return filtered_logs
+
+def manage_log_files(logs_dir, max_files=20, keep_files=10):
+    """管理日志文件数量，防止磁盘空间耗尽"""
+    try:
+        log_files = list(logs_dir.glob("*.log"))
+        if len(log_files) > max_files:
+            # 按修改时间排序
+            log_files.sort(key=lambda x: x.stat().st_mtime)
+            # 删除较旧的文件，保留最新的keep_files个
+            for old_file in log_files[:-keep_files]:
+                try:
+                    old_file.unlink()
+                    logger.info(f"已删除旧日志文件: {old_file}")
+                except Exception as e:
+                    logger.warning(f"删除旧日志文件时出错: {e}")
+    except Exception as e:
+        logger.error(f"管理日志文件时出错: {e}")
+        raise
 
 # 主函数
 def start_web_server():
