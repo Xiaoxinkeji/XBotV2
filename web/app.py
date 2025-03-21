@@ -764,6 +764,141 @@ def get_qrcode_from_logs():
     logger.warning("在所有日志文件中都未找到二维码URL")
     return None
 
+# 获取最近日志内容
+def get_recent_logs(limit=10):
+    """获取最近的日志内容"""
+    logger.info(f"获取最近 {limit} 条日志")
+    
+    # 复用获取日志文件的逻辑
+    possible_log_dirs = [
+        Path(PROJECT_ROOT) / "logs",
+        Path(PROJECT_ROOT) / "log",
+        Path(PROJECT_ROOT),
+        Path("/var/log/xbotv2"),
+        Path("/logs"),
+        Path(".")
+    ]
+    
+    log_files = []
+    
+    # 在各个可能的目录中查找日志文件
+    for logs_dir in possible_log_dirs:
+        if not logs_dir.exists():
+            continue
+        
+        # 查找多种可能的日志文件名模式
+        patterns = ["XYBot_*.log", "*.log", "xbot*.log", "bot*.log", "weixin*.log", "wechat*.log"]
+        for pattern in patterns:
+            pattern_files = list(logs_dir.glob(pattern))
+            if pattern_files:
+                log_files.extend(pattern_files)
+    
+    # 如果找不到日志文件，尝试递归查找
+    if not log_files:
+        for logs_dir in possible_log_dirs:
+            if logs_dir.exists():
+                for root, _, files in os.walk(logs_dir):
+                    root_path = Path(root)
+                    for file in files:
+                        if file.endswith('.log'):
+                            log_files.append(root_path / file)
+    
+    # 按修改时间排序
+    log_files = sorted(log_files, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True)
+    
+    if not log_files:
+        return []
+    
+    # 读取最新的日志文件
+    recent_logs = []
+    
+    for log_file in log_files:
+        if not log_file.exists() or log_file.stat().st_size == 0:
+            continue
+            
+        try:
+            # 读取文件末尾内容
+            file_size = log_file.stat().st_size
+            read_size = min(file_size, 100 * 1024)  # 最多读取最后100KB
+            
+            with open(log_file, "rb") as f:
+                if file_size > read_size:
+                    f.seek(file_size - read_size)
+                chunk = f.read().decode('utf-8', errors='ignore')
+                lines = chunk.splitlines()
+            
+            # 如果内容为空，尝试读取整个文件
+            if not lines:
+                with open(log_file, "r", encoding="utf-8", errors='ignore') as f:
+                    lines = f.readlines()
+            
+            # 提取最后的行
+            recent_logs.extend(lines[-limit:])
+            
+            # 如果已经有足够的日志行，就停止
+            if len(recent_logs) >= limit:
+                recent_logs = recent_logs[-limit:]
+                break
+                
+        except Exception as e:
+            logger.error(f"读取日志文件 {log_file} 失败: {e}")
+    
+    # 处理日志行，提取时间和内容
+    formatted_logs = []
+    for line in recent_logs:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 尝试解析标准日志格式
+        try:
+            # 查找常见的日志时间格式
+            time_match = re.search(r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}', line)
+            if time_match:
+                time_str = time_match.group(0)
+                content = line[time_match.end():].strip()
+                # 清理常见分隔符
+                if content.startswith('|'):
+                    content = content[1:].strip()
+                    # 进一步清理级别信息
+                    level_match = re.search(r'^(DEBUG|INFO|WARNING|ERROR|CRITICAL|SUCCESS|API|TRACE)', content)
+                    if level_match:
+                        level = level_match.group(0)
+                        content = content[level_match.end():].strip()
+                        # 清理其他可能的分隔符
+                        if content.startswith('|'):
+                            content = content[1:].strip()
+                        
+                        formatted_logs.append({
+                            "time": time_str,
+                            "level": level,
+                            "content": content
+                        })
+                        continue
+                
+                # 如果没有识别出标准格式，就使用默认处理
+                formatted_logs.append({
+                    "time": time_str,
+                    "level": "INFO",  # 默认级别
+                    "content": content
+                })
+            else:
+                # 没有找到时间，整行作为内容
+                formatted_logs.append({
+                    "time": "",
+                    "level": "UNKNOWN",
+                    "content": line
+                })
+        except Exception:
+            # 解析失败，将原始行添加到结果中
+            formatted_logs.append({
+                "time": "",
+                "level": "UNKNOWN",
+                "content": line
+            })
+    
+    return formatted_logs
+
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, username: str = Depends(get_current_username)):
@@ -1195,6 +1330,17 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
         return {"success": False, "message": f"保存配置失败: {str(e)}"}
+
+@app.get("/api/logs")
+async def get_logs_api(limit: int = 10, username: str = Depends(get_current_username)):
+    """获取最近的日志接口"""
+    try:
+        logs = get_recent_logs(limit)
+        return {"success": True, "logs": logs}
+    except Exception as e:
+        logger.error(f"获取日志失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"获取日志失败: {str(e)}"}
 
 # 主函数
 def start_web_server():

@@ -17,6 +17,9 @@
                             <div class="d-grid gap-2">
                                 <button id="qrcodeLogin" class="btn btn-primary">扫码登录</button>
                                 <button id="awakenLogin" class="btn btn-success">唤醒登录</button>
+                                <button id="viewLogs" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#logsModal">
+                                    <i class="bi bi-journal-text"></i> 查看日志
+                                </button>
                             </div>
                             <div class="mt-3">
                                 <small class="text-muted">
@@ -81,6 +84,32 @@
         </div>
     </div>
 </div>
+
+<!-- 添加日志查看模态框 -->
+<div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logsModalLabel">最近日志</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <button id="refreshLogs" class="btn btn-sm btn-primary me-2">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新日志
+                    </button>
+                    <button id="extractQRCode" class="btn btn-sm btn-success">
+                        <i class="bi bi-qr-code"></i> 提取二维码
+                    </button>
+                </div>
+                <div id="logsList" class="border p-2 bg-light" style="height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9em;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -103,6 +132,22 @@
             padding-bottom: 20px;
             margin-bottom: 20px;
         }
+    }
+    
+    /* 日志样式 */
+    .log-line {
+        padding: 3px 0;
+        border-bottom: 1px solid #f0f0f0;
+        word-break: break-all;
+    }
+    .log-line:last-child {
+        border-bottom: none;
+    }
+    .log-line span {
+        margin-right: 10px;
+    }
+    .log-qrcode {
+        background-color: #f8fff8;
     }
 </style>
 {% endblock %}
@@ -127,43 +172,124 @@
             doLogin('awaken');
         });
         
+        // 日志查看功能
+        document.getElementById('refreshLogs').addEventListener('click', function() {
+            loadLogs();
+        });
+        
+        document.getElementById('extractQRCode').addEventListener('click', function() {
+            extractQRCodeFromLogs();
+        });
+        
+        // 模态框显示时加载日志
+        document.getElementById('logsModal').addEventListener('shown.bs.modal', function() {
+            loadLogs();
+        });
+        
         // 手动生成二维码按钮
         document.getElementById('generateQrcode').addEventListener('click', function() {
-            const url = document.getElementById('manualQrcodeUrl').value.trim();
-            if (url) {
-                let qrUrl = url;
+            generateQRCode();
+        });
+        
+        // 页面加载完成后自动检查是否有二维码
+        autoCheckQRCode();
+    });
+    
+    // 自动检查并提取二维码
+    async function autoCheckQRCode() {
+        try {
+            const response = await fetch('/api/logs?limit=30');
+            const data = await response.json();
+            
+            if (data.success && data.logs && data.logs.length > 0) {
+                // 查找二维码
+                let qrcodeUrl = null;
                 
-                // 从日志行中提取URL
-                if (url.includes('获取到登录二维码:')) {
-                    const parts = url.split('获取到登录二维码:');
-                    if (parts.length > 1) {
-                        let urlPart = parts[1].trim();
-                        
-                        // 如果是二维码API链接，提取实际的微信URL
-                        if (urlPart.includes('url=')) {
-                            const wxUrlStart = urlPart.indexOf('url=') + 4;
-                            qrUrl = urlPart.substring(wxUrlStart).trim();
-                        } else {
-                            qrUrl = urlPart;
+                // 从最新到最旧检查
+                for (let i = data.logs.length - 1; i >= 0; i--) {
+                    const log = data.logs[i];
+                    
+                    // 检查是否包含二维码信息
+                    if (log.content.includes('获取到登录二维码:')) {
+                        const parts = log.content.split('获取到登录二维码:');
+                        if (parts.length > 1) {
+                            let urlPart = parts[1].trim();
+                            
+                            // 如果是二维码API链接，提取实际的微信URL
+                            if (urlPart.includes('url=')) {
+                                const wxUrlStart = urlPart.indexOf('url=') + 4;
+                                qrcodeUrl = urlPart.substring(wxUrlStart).trim();
+                            } else {
+                                qrcodeUrl = urlPart;
+                            }
+                            break;
+                        }
+                    } else if (log.content.includes('weixin.qq.com/x/') || log.content.includes('wx.qq.com')) {
+                        // 尝试提取URL
+                        const regex = /(https?:\/\/(?:weixin|wx)\.qq\.com\/[^\s"']+)/;
+                        const match = regex.exec(log.content);
+                        if (match) {
+                            qrcodeUrl = match[1];
+                            break;
                         }
                     }
                 }
                 
-                // 显示二维码
-                showQRCode(qrUrl);
-                // 生成一个随机的UUID
-                loginUUID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                // 开始检查登录状态
-                startCheckLogin();
-                // 显示状态
-                const statusEl = document.getElementById('loginStatus');
-                statusEl.classList.remove('d-none');
-                statusEl.textContent = '请使用微信扫描二维码登录';
-            } else {
-                alert('请输入有效的二维码链接');
+                if (qrcodeUrl) {
+                    console.log('自动发现二维码URL:', qrcodeUrl);
+                    // 填充到手动输入框并生成二维码
+                    document.getElementById('manualQrcode').classList.remove('d-none');
+                    document.getElementById('manualQrcodeUrl').value = qrcodeUrl;
+                    generateQRCode();
+                    
+                    // 显示提示
+                    const statusEl = document.getElementById('loginStatus');
+                    statusEl.classList.remove('d-none');
+                    statusEl.className = 'alert alert-success';
+                    statusEl.textContent = '已自动从日志中提取到最新的登录二维码，请扫描登录';
+                }
             }
-        });
-    });
+        } catch (error) {
+            console.error('自动检查二维码失败:', error);
+        }
+    }
+    
+    // 生成二维码
+    function generateQRCode() {
+        const url = document.getElementById('manualQrcodeUrl').value.trim();
+        if (url) {
+            let qrUrl = url;
+            
+            // 从日志行中提取URL
+            if (url.includes('获取到登录二维码:')) {
+                const parts = url.split('获取到登录二维码:');
+                if (parts.length > 1) {
+                    let urlPart = parts[1].trim();
+                    
+                    // 如果是二维码API链接，提取实际的微信URL
+                    if (urlPart.includes('url=')) {
+                        const wxUrlStart = urlPart.indexOf('url=') + 4;
+                        qrUrl = urlPart.substring(wxUrlStart).trim();
+                    } else {
+                        qrUrl = urlPart;
+                    }
+                }
+            }
+            
+            // 显示二维码
+            showQRCode(qrUrl);
+            // 生成一个随机的UUID
+            loginUUID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            // 开始检查登录状态
+            startCheckLogin();
+            // 显示状态
+            const statusEl = document.getElementById('loginStatus');
+            statusEl.classList.remove('d-none');
+            statusEl.textContent = '请使用微信扫描二维码登录';
+        } else {
+            alert('请输入有效的二维码链接');
+        }
+    }
     
     // 执行登录
     async function doLogin(method) {
@@ -421,6 +547,122 @@
         document.getElementById('loginStatus').classList.add('d-none');
         document.getElementById('qrcodeContainer').classList.add('d-none');
         document.getElementById('manualQrcode').classList.add('d-none');
+    }
+    
+    // 加载日志
+    async function loadLogs() {
+        try {
+            const logsContainer = document.getElementById('logsList');
+            logsContainer.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> 加载中...</div>';
+            
+            const response = await fetch('/api/logs?limit=30');
+            const data = await response.json();
+            
+            if (data.success && data.logs && data.logs.length > 0) {
+                logsContainer.innerHTML = '';
+                
+                // 显示日志
+                data.logs.forEach(log => {
+                    const logLine = document.createElement('div');
+                    logLine.className = 'log-line';
+                    
+                    // 根据日志级别设置颜色
+                    let levelClass = '';
+                    if (log.level) {
+                        switch(log.level.toUpperCase()) {
+                            case 'ERROR':
+                                levelClass = 'text-danger';
+                                break;
+                            case 'WARNING':
+                                levelClass = 'text-warning';
+                                break;
+                            case 'SUCCESS':
+                                levelClass = 'text-success';
+                                break;
+                            case 'INFO':
+                                levelClass = 'text-info';
+                                break;
+                        }
+                    }
+                    
+                    // 判断是否包含二维码URL
+                    let contentHtml = log.content;
+                    if (log.content.includes('获取到登录二维码:') || 
+                        log.content.includes('weixin.qq.com/x/') || 
+                        log.content.includes('wx.qq.com')) {
+                        
+                        logLine.className += ' log-qrcode';
+                        contentHtml = `<span class="text-success fw-bold">${contentHtml}</span>`;
+                    }
+                    
+                    logLine.innerHTML = `
+                        <span class="text-muted">${log.time}</span>
+                        <span class="${levelClass}">${log.level}</span>
+                        <span>${contentHtml}</span>
+                    `;
+                    
+                    logsContainer.appendChild(logLine);
+                });
+                
+                // 滚动到底部
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            } else {
+                logsContainer.innerHTML = '<div class="text-center text-muted">未找到日志或加载失败</div>';
+            }
+        } catch (error) {
+            console.error('加载日志失败:', error);
+            document.getElementById('logsList').innerHTML = `<div class="text-center text-danger">加载日志失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 从日志中提取二维码
+    function extractQRCodeFromLogs() {
+        const logsContainer = document.getElementById('logsList');
+        const logLines = logsContainer.querySelectorAll('.log-line');
+        
+        // 查找包含二维码的日志行
+        let qrcodeUrl = null;
+        for (let i = logLines.length - 1; i >= 0; i--) {
+            const line = logLines[i].textContent.trim();
+            
+            // 检查是否包含二维码信息
+            if (line.includes('获取到登录二维码:')) {
+                const parts = line.split('获取到登录二维码:');
+                if (parts.length > 1) {
+                    let urlPart = parts[1].trim();
+                    
+                    // 如果是二维码API链接，提取实际的微信URL
+                    if (urlPart.includes('url=')) {
+                        const wxUrlStart = urlPart.indexOf('url=') + 4;
+                        qrcodeUrl = urlPart.substring(wxUrlStart).trim();
+                    } else {
+                        qrcodeUrl = urlPart;
+                    }
+                    break;
+                }
+            } else if (line.includes('weixin.qq.com/x/') || line.includes('wx.qq.com')) {
+                // 尝试提取URL
+                const regex = /(https?:\/\/(?:weixin|wx)\.qq\.com\/[^\s"']+)/;
+                const match = regex.exec(line);
+                if (match) {
+                    qrcodeUrl = match[1];
+                    break;
+                }
+            }
+        }
+        
+        if (qrcodeUrl) {
+            // 填充到手动输入框并自动点击生成按钮
+            document.getElementById('manualQrcodeUrl').value = qrcodeUrl;
+            document.getElementById('generateQrcode').click();
+            
+            // 隐藏模态框
+            const modalElement = document.getElementById('logsModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+            modal.hide();
+        } else {
+            alert('未在日志中找到二维码URL');
+        }
     }
 </script>
 {% endblock %} 
