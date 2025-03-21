@@ -22,11 +22,15 @@ RUN grep -v -E "matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_
     pip install --no-cache-dir -r requirements_filtered.txt
 
 # 复制项目文件
-COPY . .
+COPY . /app/
 
 # 确保目录结构存在
-RUN mkdir -p /app/web_ui/middlewares /app/web_ui/utils && \
-    touch /app/web_ui/middlewares/__init__.py /app/web_ui/utils/__init__.py
+RUN if [ ! -f "/app/web_ui/middlewares/error_handlers.py" ]; then \
+    mkdir -p /app/web_ui/middlewares /app/web_ui/utils && \
+    echo '"""中间件包"""\n\nfrom .error_handlers import *' > /app/web_ui/middlewares/__init__.py && \
+    echo '"""错误处理中间件"""\n\nimport logging\nfrom fastapi import Request\nfrom fastapi.responses import JSONResponse\n\nlogger = logging.getLogger(__name__)\n\nasync def catch_exceptions_middleware(request: Request, call_next):\n    """全局异常捕获中间件"""\n    try:\n        return await call_next(request)\n    except Exception as e:\n        logger.exception(f"未捕获的异常: {str(e)}")\n        return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})\n' > /app/web_ui/middlewares/error_handlers.py && \
+    touch /app/web_ui/utils/__init__.py; \
+fi
 
 # 尝试安装xywechatpad-binary
 RUN echo "尝试安装xywechatpad-binary..." && \

@@ -28,6 +28,32 @@ import subprocess
 
 # 在导入处添加错误处理
 try:
+    from .middlewares.error_handlers import catch_exceptions_middleware, validation_exception_handler, http_exception_handler
+    HAS_ERROR_HANDLERS = True
+except ImportError:
+    HAS_ERROR_HANDLERS = False
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("错误处理中间件不可用，创建临时实现")
+    
+    # 创建临时的中间件函数
+    async def catch_exceptions_middleware(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception as e:
+            logger.exception(f"未捕获的异常: {str(e)}")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})
+    
+    async def validation_exception_handler(request, exc):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=422, content={"detail": "请求数据验证失败"})
+    
+    async def http_exception_handler(request, exc):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+try:
     from .middlewares.wechat_monitor import WechatMonitorMiddleware
     from .utils.wechat_utils import init_wechat_connection, check_wechat_connection
     from .utils.service_recovery import start_wechat_service
