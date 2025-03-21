@@ -639,6 +639,7 @@ def get_qrcode_from_logs():
             lines = f.readlines()
             # 倒序查找，因为最新的登录二维码应该在日志文件的后面
             for line in reversed(lines):
+                # 标准的微信二维码链接
                 if "https://login.weixin.qq.com/qrcode/" in line or "https://long.open.weixin.qq.com/" in line:
                     # 提取URL
                     start_index = line.find("https://")
@@ -647,6 +648,31 @@ def get_qrcode_from_logs():
                         if end_index == -1:
                             end_index = len(line)
                         qrcode_url = line[start_index:end_index].strip()
+                        break
+                
+                # 新的格式: "获取到登录二维码: https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/"
+                elif "获取到登录二维码:" in line:
+                    # 提取URL
+                    parts = line.split("获取到登录二维码:")
+                    if len(parts) > 1:
+                        url_part = parts[1].strip()
+                        
+                        # 判断是否是生成二维码的API链接
+                        if "url=" in url_part:
+                            # 提取实际的微信登录URL
+                            wx_url_start = url_part.find("url=") + 4
+                            wx_url = url_part[wx_url_start:].strip()
+                            qrcode_url = wx_url
+                        else:
+                            qrcode_url = url_part
+                        break
+                
+                # 其他可能的格式，如直接包含微信链接
+                elif "weixin.qq.com/x/" in line or "wx.qq.com" in line:
+                    # 尝试提取微信URL
+                    match = re.search(r'https?://(?:weixin|wx)\.qq\.com/[^\s"\']+', line)
+                    if match:
+                        qrcode_url = match.group(0)
                         break
     except Exception as e:
         logger.error(f"读取日志文件失败: {e}")

@@ -23,9 +23,27 @@
                                     <i class="bi bi-info-circle"></i> 唤醒登录：将尝试从日志中获取最新的登录二维码，如果成功会显示二维码；如果失败会尝试唤醒已登录的微信账号。
                                 </small>
                             </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb"></i> 提示：如果遇到登录问题，可以尝试先启动机器人，然后使用"唤醒登录"功能获取日志中的登录链接。
+                                </small>
+                            </div>
                         </div>
                         <div id="loginStatus" class="alert alert-info d-none">
                             等待登录...
+                        </div>
+                        <div id="manualQrcode" class="mt-3 d-none">
+                            <h6>手动输入二维码链接</h6>
+                            <div class="input-group">
+                                <input type="text" id="manualQrcodeUrl" class="form-control" placeholder="输入日志中的二维码链接..." aria-label="输入二维码链接">
+                                <button class="btn btn-outline-secondary" type="button" id="generateQrcode">生成</button>
+                            </div>
+                            <div class="form-text">
+                                <small>格式示例：http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF</small>
+                            </div>
+                            <div class="form-text mt-1">
+                                <small>也可以直接粘贴完整日志行：获取到登录二维码: https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF</small>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-6 text-center">
@@ -98,6 +116,43 @@
         document.getElementById('awakenLogin').addEventListener('click', function() {
             doLogin('awaken');
         });
+        
+        // 手动生成二维码按钮
+        document.getElementById('generateQrcode').addEventListener('click', function() {
+            const url = document.getElementById('manualQrcodeUrl').value.trim();
+            if (url) {
+                let qrUrl = url;
+                
+                // 从日志行中提取URL
+                if (url.includes('获取到登录二维码:')) {
+                    const parts = url.split('获取到登录二维码:');
+                    if (parts.length > 1) {
+                        let urlPart = parts[1].trim();
+                        
+                        // 如果是二维码API链接，提取实际的微信URL
+                        if (urlPart.includes('url=')) {
+                            const wxUrlStart = urlPart.indexOf('url=') + 4;
+                            qrUrl = urlPart.substring(wxUrlStart).trim();
+                        } else {
+                            qrUrl = urlPart;
+                        }
+                    }
+                }
+                
+                // 显示二维码
+                showQRCode(qrUrl);
+                // 生成一个随机的UUID
+                loginUUID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                // 开始检查登录状态
+                startCheckLogin();
+                // 显示状态
+                const statusEl = document.getElementById('loginStatus');
+                statusEl.classList.remove('d-none');
+                statusEl.textContent = '请使用微信扫描二维码登录';
+            } else {
+                alert('请输入有效的二维码链接');
+            }
+        });
     });
     
     // 执行登录
@@ -153,6 +208,8 @@
                     statusEl.textContent = '已找到登录二维码，请使用微信扫描登录';
                 } else {
                     statusEl.textContent = '已发送唤醒登录请求，请在手机上确认';
+                    // 如果没有找到二维码URL，显示手动输入区域
+                    document.getElementById('manualQrcode').classList.remove('d-none');
                 }
                 
                 // 开始检查登录状态
@@ -161,6 +218,8 @@
         } catch (error) {
             console.error('登录错误:', error);
             showLoginError(error.message);
+            // 登录出错时，显示手动输入区域
+            document.getElementById('manualQrcode').classList.remove('d-none');
         }
     }
     
@@ -173,8 +232,16 @@
         qrcodeElement.innerHTML = '';
         qrcodeContainer.classList.remove('d-none');
         
+        // 修复URL，确保是完整的URL
+        let qrUrl = url;
+        if (!qrUrl.startsWith('http')) {
+            qrUrl = 'http://' + qrUrl;
+        }
+        
+        console.log('生成二维码URL:', qrUrl);
+        
         // 生成二维码
-        QRCode.toCanvas(qrcodeElement, url, {
+        QRCode.toCanvas(qrcodeElement, qrUrl, {
             width: 200,
             margin: 1
         }, function(error) {
@@ -322,6 +389,7 @@
         // 隐藏状态和二维码
         document.getElementById('loginStatus').classList.add('d-none');
         document.getElementById('qrcodeContainer').classList.add('d-none');
+        document.getElementById('manualQrcode').classList.add('d-none');
     }
 </script>
 {% endblock %} 
