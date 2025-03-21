@@ -12,13 +12,13 @@ echo -e "${GREEN}开始检查项目依赖...${NC}"
 if grep -q "matplotlib~=3.10.0" requirements.txt; then
     echo -e "${YELLOW}检测到不兼容的matplotlib版本，正在修复...${NC}"
     sed -i 's/matplotlib~=3.10.0/matplotlib~=3.9.0/g' requirements.txt
-    echo -e "${GREEN}已修复 matplotlib 版本要求${NC}"
+    echo -e "${GREEN}已修固 matplotlib 版本要求${NC}"
 fi
 
 if grep -q "pysilk>=0.5" requirements.txt; then
     echo -e "${YELLOW}检测到不兼容的pysilk版本，正在修复...${NC}"
     sed -i 's/pysilk>=0.5/pysilk-mod>=1.6.4/g' requirements.txt
-    echo -e "${GREEN}已修复 pysilk 版本要求${NC}"
+    echo -e "${GREEN}已修固 pysilk 版本要求${NC}"
 fi
 
 if grep -q "xywechatpad-binary" requirements.txt; then
