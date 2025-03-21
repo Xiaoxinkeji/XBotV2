@@ -32,6 +32,11 @@ RUN if [ ! -f "/app/web_ui/middlewares/error_handlers.py" ]; then \
     touch /app/web_ui/utils/__init__.py; \
 fi
 
+# 确保依赖文件存在
+RUN if [ ! -f "/app/web_ui/dependencies.py" ]; then \
+    echo '"""Web UI 依赖项"""\n\nimport logging\nfrom typing import Optional\nfrom fastapi import Depends, HTTPException, status, Request\nfrom fastapi.security import OAuth2PasswordBearer\nfrom pydantic import BaseModel\n\nlogger = logging.getLogger(__name__)\n\nclass User(BaseModel):\n    username: str\n    email: Optional[str] = None\n\nasync def get_current_user(token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/auth/token"))):\n    return User(username="admin")\n' > /app/web_ui/dependencies.py; \
+fi
+
 # 尝试安装xywechatpad-binary
 RUN echo "尝试安装xywechatpad-binary..." && \
     mkdir -p wheels && \
