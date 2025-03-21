@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, status, Form, Body
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, Depends, status, Form, Body, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -11,14 +11,14 @@ import secrets
 from pathlib import Path
 import sys
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import importlib
 import shutil
 import toml
 import psutil
 import subprocess
 import platform
-from datetime import datetime
+from datetime import datetime, timedelta
 import httpx
 import uuid
 import logging
@@ -30,6 +30,7 @@ from pydantic import BaseModel
 import traceback
 import glob
 from database.plugin_repository import get_plugin_repository, init_plugin_repository
+from starlette.status import HTTP_307_TEMPORARY_REDIRECT
 
 # 确保能导入主项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1050,6 +1051,17 @@ async def get_status_api(username: str = Depends(get_current_username)):
             "login_time": get_login_time()
         }
         
+        # 添加头像URL
+        try:
+            profile_path = PROJECT_ROOT / "resource" / "profile.json"
+            if os.path.exists(profile_path):
+                with open(profile_path, "r", encoding="utf-8") as f:
+                    profile_data = json.load(f)
+                    if "avatar_url" in profile_data:
+                        user_info["avatar_url"] = profile_data["avatar_url"]
+        except Exception as e:
+            logger.warning(f"读取用户头像URL失败: {e}")
+        
         # 获取消息统计
         message_stats = get_message_stats()
         
@@ -1193,12 +1205,14 @@ async def toggle_plugin(plugin_id: str, username: str = Depends(get_current_user
     current_config["XYBot"]["disabled-plugins"] = disabled_plugins
     
     try:
-        # 保存配置
-        with open(config_path, "w") as f:
+        # 保存配置 - 使用toml库而不是tomllib
+        with open(config_path, "w", encoding="utf-8") as f:
             toml.dump(current_config, f)
         
         return {"success": True, "message": f"插件 {plugin_id} 已{'启用' if new_status else '禁用'}", "enabled": new_status}
     except Exception as e:
+        logger.error(f"保存配置失败: {e}")
+        logger.error(traceback.format_exc())
         return {"success": False, "message": f"切换插件状态失败: {str(e)}"}
 
 @app.get("/api/plugins/{plugin_id}/config")
@@ -1248,16 +1262,18 @@ async def save_plugin_config(
     main_config["XYBot"]["disabled-plugins"] = disabled_plugins
     
     try:
-        # 保存主配置
-        with open(config_path, "w") as f:
+        # 保存主配置 - 使用toml库而不是tomllib
+        with open(config_path, "w", encoding="utf-8") as f:
             toml.dump(main_config, f)
         
         # 保存插件配置
-        with open(plugin_config_path, "w") as f:
+        with open(plugin_config_path, "w", encoding="utf-8") as f:
             toml.dump(config_data["config"], f)
         
         return {"success": True, "message": "配置已保存"}
     except Exception as e:
+        logger.error(f"保存插件配置失败: {e}")
+        logger.error(traceback.format_exc())
         return {"success": False, "message": f"保存配置失败: {str(e)}"}
 
 @app.post("/api/plugins/install")
@@ -1530,14 +1546,27 @@ async def check_login_status(uuid: str, device_id: Optional[str] = None, usernam
 @app.post("/api/settings/save")
 async def save_settings(config_data: Dict[str, Any] = Body(...), username: str = Depends(get_current_username)):
     try:
-        # 保存配置到main_config.toml
-        with open(config_path, "w") as f:
-            tomllib.dump(config_data, f)
+        # 读取现有配置
+        with open(config_path, "rb") as f:
+            current_config = tomllib.load(f)
         
-        return {"success": True, "message": "配置已保存"}
+        # 更新配置
+        for section, settings in config_data.items():
+            if section not in current_config:
+                current_config[section] = {}
+            
+            for key, value in settings.items():
+                current_config[section][key] = value
+        
+        # 保存配置 - 使用toml库而不是tomllib
+        with open(config_path, "w", encoding="utf-8") as f:
+            toml.dump(current_config, f)
+        
+        return {"success": True, "message": "设置已保存"}
     except Exception as e:
-        logger.error(f"保存配置失败: {e}")
-        return {"success": False, "message": f"保存配置失败: {str(e)}"}
+        logger.error(f"保存设置失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"保存设置失败: {str(e)}"}
 
 @app.get("/api/logs")
 async def get_logs_api(limit: int = 10, search: str = None, level: str = None, username: str = Depends(get_current_username)):

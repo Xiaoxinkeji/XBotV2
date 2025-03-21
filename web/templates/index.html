@@ -165,8 +165,11 @@
             </div>
             <div class="card-body">
                 <div class="text-center mb-3">
-                    <div class="avatar-placeholder mb-2" id="userAvatar">
-                        <i class="bi bi-person-fill" style="font-size: 3rem;"></i>
+                    <div class="avatar-container mb-2" id="userAvatar">
+                        <img id="userAvatarImg" src="" alt="用户头像" class="rounded-circle d-none" style="width: 80px; height: 80px; object-fit: cover;">
+                        <div id="userAvatarPlaceholder" class="avatar-placeholder">
+                            <i class="bi bi-person-fill" style="font-size: 3rem;"></i>
+                        </div>
                     </div>
                     <h5 id="userNickname">未登录</h5>
                     <p class="text-muted" id="userWxid">-</p>
@@ -319,6 +322,13 @@
     }
     
     /* 新增样式 */
+    .avatar-container {
+        width: 80px;
+        height: 80px;
+        position: relative;
+        margin: 0 auto;
+    }
+    
     .avatar-placeholder {
         width: 80px;
         height: 80px;
@@ -537,10 +547,42 @@
             document.getElementById('userWxid').textContent = userData.wxid;
             document.getElementById('userNickname').textContent = userData.nickname || '-';
             document.getElementById('loginTime').textContent = formatTime(userData.login_time);
+            
+            // 处理头像
+            if (userData.avatar_url) {
+                const avatarImg = document.getElementById('userAvatarImg');
+                const avatarPlaceholder = document.getElementById('userAvatarPlaceholder');
+                
+                // 设置图片src并显示
+                avatarImg.src = userData.avatar_url;
+                avatarImg.classList.remove('d-none');
+                avatarPlaceholder.classList.add('d-none');
+                
+                // 图片加载错误时显示占位符
+                avatarImg.onerror = function() {
+                    avatarImg.classList.add('d-none');
+                    avatarPlaceholder.classList.remove('d-none');
+                    console.error('头像加载失败:', userData.avatar_url);
+                };
+            } else {
+                // 没有头像URL时显示占位符
+                const avatarImg = document.getElementById('userAvatarImg');
+                const avatarPlaceholder = document.getElementById('userAvatarPlaceholder');
+                
+                avatarImg.classList.add('d-none');
+                avatarPlaceholder.classList.remove('d-none');
+            }
         } else {
             document.getElementById('userWxid').textContent = '未登录';
             document.getElementById('userNickname').textContent = '未登录';
             document.getElementById('loginTime').textContent = '-';
+            
+            // 恢复默认头像占位符
+            const avatarImg = document.getElementById('userAvatarImg');
+            const avatarPlaceholder = document.getElementById('userAvatarPlaceholder');
+            
+            avatarImg.classList.add('d-none');
+            avatarPlaceholder.classList.remove('d-none');
         }
     }
     

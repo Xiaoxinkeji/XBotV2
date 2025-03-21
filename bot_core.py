@@ -139,13 +139,24 @@ async def bot_core():
         logger.info("登录账号信息: wxid: {}  昵称: {}  微信号: {}  手机号: {}", bot.wxid, bot.nickname, bot.alias,
                     bot.phone)
         
+        # 获取头像URL
+        try:
+            # 获取个人二维码，它包含头像URL
+            qrcode_data = await bot.get_my_qrcode()
+            avatar_url = qrcode_data.get("headImgUrl", "")
+            logger.info("获取到用户头像URL: {}", avatar_url)
+        except Exception as e:
+            logger.warning("获取头像URL失败: {}", e)
+            avatar_url = ""
+        
         # 保存用户信息到profile.json，供Web界面读取
         profile_data = {
             "wxid": bot.wxid,
             "nickname": bot.nickname,
             "alias": bot.alias,
             "phone": bot.phone,
-            "login_time": int(time.time())
+            "login_time": int(time.time()),
+            "avatar_url": avatar_url  # 添加头像URL
         }
         profile_path = script_dir / "resource" / "profile.json"
         with open(profile_path, "w", encoding="utf-8") as f:
@@ -162,12 +173,23 @@ async def bot_core():
         try:
             bot.alias = profile.get("Alias") or ""
             
+            # 获取头像URL
+            try:
+                # 获取个人二维码，它包含头像URL
+                qrcode_data = await bot.get_my_qrcode()
+                avatar_url = qrcode_data.get("headImgUrl", "")
+                logger.info("获取到用户头像URL: {}", avatar_url)
+            except Exception as e:
+                logger.warning("获取头像URL失败: {}", e)
+                avatar_url = ""
+            
             # 保存或更新用户信息到profile.json，供Web界面读取
             profile_data = {
                 "wxid": bot.wxid,
                 "nickname": bot.nickname,
                 "alias": bot.alias,
-                "login_time": int(time.time())
+                "login_time": int(time.time()),
+                "avatar_url": avatar_url  # 添加头像URL
             }
             profile_path = script_dir / "resource" / "profile.json"
             with open(profile_path, "w", encoding="utf-8") as f:
