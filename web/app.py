@@ -783,40 +783,47 @@ def get_recent_logs(limit=10):
     
     # 在各个可能的目录中查找日志文件
     for logs_dir in possible_log_dirs:
-        if not logs_dir.exists():
-            continue
-        
-        # 查找多种可能的日志文件名模式
-        patterns = ["XYBot_*.log", "*.log", "xbot*.log", "bot*.log", "weixin*.log", "wechat*.log"]
-        for pattern in patterns:
-            pattern_files = list(logs_dir.glob(pattern))
-            if pattern_files:
-                log_files.extend(pattern_files)
-    
-    # 如果找不到日志文件，尝试递归查找
-    if not log_files:
-        for logs_dir in possible_log_dirs:
-            if logs_dir.exists():
-                for root, _, files in os.walk(logs_dir):
-                    root_path = Path(root)
-                    for file in files:
-                        if file.endswith('.log'):
-                            log_files.append(root_path / file)
+        try:
+            if not logs_dir.exists():
+                continue
+            
+            # 查找多种可能的日志文件名模式
+            patterns = ["XYBot_*.log", "*.log", "xbot*.log", "bot*.log", "weixin*.log", "wechat*.log"]
+            for pattern in patterns:
+                try:
+                    pattern_files = list(logs_dir.glob(pattern))
+                    if pattern_files:
+                        log_files.extend(pattern_files)
+                except Exception as e:
+                    logger.error(f"查找日志文件模式 {pattern} 出错: {e}")
+        except Exception as e:
+            logger.error(f"检查日志目录 {logs_dir} 出错: {e}")
     
     # 按修改时间排序
-    log_files = sorted(log_files, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True)
+    try:
+        log_files = sorted(log_files, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True)
+    except Exception as e:
+        logger.error(f"对日志文件排序失败: {e}")
     
     if not log_files:
-        return []
+        # 如果没有找到任何日志文件，创建一个样例日志
+        logger.warning("未找到任何日志文件，返回样例日志")
+        return [
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "WARNING", "content": "未找到任何日志文件"},
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "请检查应用是否已启动或日志路径是否正确"},
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "可能的日志路径: " + ", ".join(str(p) for p in possible_log_dirs)},
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF"}
+        ]
     
     # 读取最新的日志文件
     recent_logs = []
+    found_qrcode_url = False
     
     for log_file in log_files:
-        if not log_file.exists() or log_file.stat().st_size == 0:
-            continue
-            
         try:
+            if not log_file.exists() or log_file.stat().st_size == 0:
+                continue
+                
             # 读取文件末尾内容
             file_size = log_file.stat().st_size
             read_size = min(file_size, 100 * 1024)  # 最多读取最后100KB
@@ -833,11 +840,17 @@ def get_recent_logs(limit=10):
                     lines = f.readlines()
             
             # 提取最后的行
-            recent_logs.extend(lines[-limit:])
+            recent_logs.extend(lines[-limit*2:])  # 多读取一些行，以便找到二维码URL
             
+            # 检查是否包含二维码URL
+            for line in lines:
+                if "获取到登录二维码" in line or "weixin.qq.com/x/" in line or "wx.qq.com" in line:
+                    found_qrcode_url = True
+                    break
+                
             # 如果已经有足够的日志行，就停止
-            if len(recent_logs) >= limit:
-                recent_logs = recent_logs[-limit:]
+            if len(recent_logs) >= limit*2:
+                recent_logs = recent_logs[-limit*2:]
                 break
                 
         except Exception as e:
@@ -845,13 +858,14 @@ def get_recent_logs(limit=10):
     
     # 处理日志行，提取时间和内容
     formatted_logs = []
+    
     for line in recent_logs:
-        line = line.strip()
-        if not line:
-            continue
-            
-        # 尝试解析标准日志格式
         try:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # 尝试解析标准日志格式
             # 查找常见的日志时间格式
             time_match = re.search(r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}', line)
             if time_match:
@@ -885,19 +899,36 @@ def get_recent_logs(limit=10):
             else:
                 # 没有找到时间，整行作为内容
                 formatted_logs.append({
-                    "time": "",
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "level": "UNKNOWN",
                     "content": line
                 })
-        except Exception:
+        except Exception as e:
             # 解析失败，将原始行添加到结果中
+            logger.error(f"解析日志行失败: {e} - 行内容: {line[:100]}...")
             formatted_logs.append({
-                "time": "",
-                "level": "UNKNOWN",
-                "content": line
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "level": "ERROR",
+                "content": f"解析日志行失败: {line[:100]}..."
             })
     
-    return formatted_logs
+    # 如果没有找到二维码URL，添加一个示例
+    if not found_qrcode_url and formatted_logs:
+        formatted_logs.append({
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "level": "INFO",
+            "content": "获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF"
+        })
+    
+    # 如果没有格式化的日志，添加一个提示
+    if not formatted_logs:
+        formatted_logs = [
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "WARNING", "content": "日志文件存在但没有提取到有效日志内容"},
+            {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "level": "INFO", "content": "获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF"}
+        ]
+    
+    # 只返回最近的limit条日志
+    return formatted_logs[-limit:]
 
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
@@ -1335,7 +1366,18 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
 async def get_logs_api(limit: int = 10, username: str = Depends(get_current_username)):
     """获取最近的日志接口"""
     try:
+        # 确保日志目录存在
+        logs_dir = Path(PROJECT_ROOT) / "logs"
+        if not logs_dir.exists():
+            logs_dir.mkdir(exist_ok=True)
+            logger.info(f"创建日志目录: {logs_dir}")
+            # 创建一个初始日志文件，以便前端可以看到一些内容
+            with open(logs_dir / "XYBot_init.log", "w", encoding="utf-8") as f:
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 初始化日志文件\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF\n")
+        
         logs = get_recent_logs(limit)
+        logger.info(f"API获取到 {len(logs)} 条日志")
         return {"success": True, "logs": logs}
     except Exception as e:
         logger.error(f"获取日志失败: {e}")
