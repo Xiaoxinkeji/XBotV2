@@ -621,24 +621,96 @@ def control_robot(action: str):
 # 获取二维码URL
 def get_qrcode_from_logs():
     """从最新的日志文件中获取登录二维码URL"""
-    logs_dir = Path(PROJECT_ROOT) / "logs"
-    if not logs_dir.exists():
-        return None
+    logger.info("开始从日志中查找二维码URL")
     
-    # 查找最新的日志文件
-    log_files = sorted(logs_dir.glob("XYBot_*.log"), key=lambda x: x.stat().st_mtime, reverse=True)
+    # 尝试多个可能的日志位置
+    possible_log_dirs = [
+        Path(PROJECT_ROOT) / "logs",
+        Path(PROJECT_ROOT) / "log",
+        Path(PROJECT_ROOT),
+        Path("/var/log/xbotv2"),
+        Path("/logs"),
+        Path(".")
+    ]
+    
+    log_files = []
+    
+    # 记录搜索目录
+    search_info = "搜索日志目录: "
+    for log_dir in possible_log_dirs:
+        search_info += f"{str(log_dir)}, "
+    logger.info(search_info)
+    
+    # 在各个可能的目录中查找日志文件
+    for logs_dir in possible_log_dirs:
+        if not logs_dir.exists():
+            logger.info(f"日志目录不存在: {logs_dir}")
+            continue
+        
+        # 查找多种可能的日志文件名模式
+        patterns = ["XYBot_*.log", "*.log", "xbot*.log", "bot*.log", "weixin*.log", "wechat*.log"]
+        for pattern in patterns:
+            pattern_files = list(logs_dir.glob(pattern))
+            if pattern_files:
+                logger.info(f"在 {logs_dir} 中找到 {len(pattern_files)} 个匹配 {pattern} 的日志文件")
+                log_files.extend(pattern_files)
+    
+    # 如果找不到日志文件，尝试递归查找
     if not log_files:
+        logger.info("未找到日志文件，尝试递归查找")
+        for logs_dir in possible_log_dirs:
+            if logs_dir.exists():
+                for root, _, files in os.walk(logs_dir):
+                    root_path = Path(root)
+                    for file in files:
+                        if file.endswith('.log'):
+                            log_files.append(root_path / file)
+    
+    # 按修改时间排序
+    log_files = sorted(log_files, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True)
+    
+    if not log_files:
+        logger.warning("未找到任何日志文件")
         return None
     
-    latest_log = log_files[0]
-    qrcode_url = None
+    # 记录找到的日志文件
+    files_info = "找到的日志文件: "
+    for log_file in log_files[:5]:  # 只显示前5个
+        files_info += f"{log_file.name} ({log_file.stat().st_size} bytes), "
+    logger.info(files_info)
     
-    # 从日志文件中查找包含二维码URL的行
-    try:
-        with open(latest_log, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+    # 遍历所有日志文件，按照最新的优先
+    for latest_log in log_files:
+        if not latest_log.exists() or latest_log.stat().st_size == 0:
+            continue
+            
+        logger.info(f"尝试从 {latest_log} 中读取二维码")
+        qrcode_url = None
+        
+        # 从日志文件中查找包含二维码URL的行
+        try:
+            # 首先尝试读取文件末尾的内容（更高效）
+            lines = []
+            file_size = latest_log.stat().st_size
+            read_size = min(file_size, 50 * 1024)  # 最多读取最后50KB
+            
+            with open(latest_log, "rb") as f:
+                if file_size > read_size:
+                    f.seek(file_size - read_size)
+                chunk = f.read().decode('utf-8', errors='ignore')
+                lines = chunk.splitlines()
+            
+            # 如果未找到，则读取整个文件
+            if not lines or (len(lines) == 1 and not lines[0].strip()):
+                with open(latest_log, "r", encoding="utf-8", errors='ignore') as f:
+                    lines = f.readlines()
+            
             # 倒序查找，因为最新的登录二维码应该在日志文件的后面
             for line in reversed(lines):
+                # 记录处理的行
+                line_preview = line[:100] + "..." if len(line) > 100 else line
+                logger.debug(f"处理日志行: {line_preview}")
+                
                 # 标准的微信二维码链接
                 if "https://login.weixin.qq.com/qrcode/" in line or "https://long.open.weixin.qq.com/" in line:
                     # 提取URL
@@ -648,12 +720,16 @@ def get_qrcode_from_logs():
                         if end_index == -1:
                             end_index = len(line)
                         qrcode_url = line[start_index:end_index].strip()
+                        logger.info(f"找到标准微信二维码链接: {qrcode_url}")
                         break
                 
                 # 新的格式: "获取到登录二维码: https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/"
-                elif "获取到登录二维码:" in line:
+                elif "获取到登录二维码:" in line or "获取到登录二维码" in line:
                     # 提取URL
                     parts = line.split("获取到登录二维码:")
+                    if len(parts) == 1:  # 处理可能的空格或其他分隔符
+                        parts = line.split("获取到登录二维码")
+                    
                     if len(parts) > 1:
                         url_part = parts[1].strip()
                         
@@ -665,6 +741,8 @@ def get_qrcode_from_logs():
                             qrcode_url = wx_url
                         else:
                             qrcode_url = url_part
+                        
+                        logger.info(f"找到新格式微信二维码链接: {qrcode_url}")
                         break
                 
                 # 其他可能的格式，如直接包含微信链接
@@ -673,11 +751,18 @@ def get_qrcode_from_logs():
                     match = re.search(r'https?://(?:weixin|wx)\.qq\.com/[^\s"\']+', line)
                     if match:
                         qrcode_url = match.group(0)
+                        logger.info(f"找到微信域名二维码链接: {qrcode_url}")
                         break
-    except Exception as e:
-        logger.error(f"读取日志文件失败: {e}")
+            
+            if qrcode_url:
+                return qrcode_url
+                
+        except Exception as e:
+            logger.error(f"读取日志文件 {latest_log} 失败: {e}")
+            logger.error(traceback.format_exc())
     
-    return qrcode_url
+    logger.warning("在所有日志文件中都未找到二维码URL")
+    return None
 
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
@@ -919,19 +1004,34 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
         
         elif login_method == "awaken":
             # 唤醒登录逻辑
+            logger.info("开始处理唤醒登录请求")
+            
             # 先尝试控制机器人启动(如果未运行)
-            if not is_robot_running():
+            robot_running = is_robot_running()
+            logger.info(f"机器人运行状态: {'运行中' if robot_running else '未运行'}")
+            
+            if not robot_running:
+                logger.info("机器人未运行，尝试启动")
                 control_robot("start")
                 # 等待机器人启动
-                for _ in range(10):
+                start_success = False
+                for i in range(15):  # 增加等待时间到15秒
+                    logger.info(f"等待机器人启动...第{i+1}次检查")
                     if is_robot_running():
+                        start_success = True
+                        logger.info("机器人已成功启动")
                         break
                     await asyncio.sleep(1)
+                
+                if not start_success:
+                    logger.warning("机器人启动超时")
             
             # 从日志中获取二维码URL
+            logger.info("尝试从日志中获取二维码URL")
             qrcode_url = get_qrcode_from_logs()
             
             if qrcode_url:
+                logger.info(f"成功从日志中获取到二维码URL: {qrcode_url[:30]}...")
                 # 如果找到二维码URL，使用与扫码登录相同的方式返回
                 login_uuid = str(uuid.uuid4())
                 return {
@@ -939,43 +1039,85 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                     "method": "qrcode",
                     "url": qrcode_url,
                     "uuid": login_uuid,
-                    "device_id": None
+                    "device_id": None,
+                    "message": "已从日志中找到最新的登录二维码"
                 }
             else:
+                logger.warning("未从日志中找到二维码URL，尝试唤醒已登录的账号")
                 # 如果没找到二维码URL，使用原来的唤醒登录逻辑
                 if not MODULES_LOADED:
+                    logger.error("模块未加载，无法继续唤醒登录")
                     return {"success": False, "message": "模块未加载，无法登录"}
                 
-                # 导入WechatAPI
-                import WechatAPI
-                
-                # 创建WechatAPI客户端
-                api_config = config.get("WechatAPIServer", {})
-                client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
-                
-                # 获取设备信息
-                robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
-                if os.path.exists(robot_stat_path):
-                    with open(robot_stat_path, "r") as f:
-                        robot_stat = json.load(f)
+                try:
+                    # 导入WechatAPI
+                    import WechatAPI
                     
-                    device_name = robot_stat.get("device_name", None)
-                    device_id = robot_stat.get("device_id", None)
-                    wxid = robot_stat.get("wxid", None)
-                else:
-                    device_name = None
-                    device_id = None
-                    wxid = None
-                
-                if not wxid:
-                    return {"success": False, "message": "无法唤醒登录，未找到wxid信息"}
-                
-                # 尝试唤醒登录
-                if await client.get_cached_info(wxid):
-                    uuid = await client.awaken_login(wxid)
-                    return {"success": True, "method": "awaken", "uuid": uuid}
-                else:
-                    return {"success": False, "message": "无法唤醒登录，账号缓存不存在"}
+                    # 创建WechatAPI客户端
+                    api_config = config.get("WechatAPIServer", {})
+                    client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
+                    
+                    # 获取设备信息
+                    robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
+                    if os.path.exists(robot_stat_path):
+                        logger.info(f"读取机器人状态文件: {robot_stat_path}")
+                        try:
+                            with open(robot_stat_path, "r") as f:
+                                robot_stat = json.load(f)
+                            
+                            device_name = robot_stat.get("device_name", None)
+                            device_id = robot_stat.get("device_id", None)
+                            wxid = robot_stat.get("wxid", None)
+                            
+                            logger.info(f"机器人状态信息: device_name={device_name}, device_id={device_id}, wxid={wxid}")
+                        except Exception as e:
+                            logger.error(f"读取机器人状态文件失败: {e}")
+                            device_name = None
+                            device_id = None
+                            wxid = None
+                    else:
+                        logger.warning(f"机器人状态文件不存在: {robot_stat_path}")
+                        device_name = None
+                        device_id = None
+                        wxid = None
+                    
+                    if not wxid:
+                        logger.error("无法找到wxid信息，无法唤醒登录")
+                        login_uuid = str(uuid.uuid4())
+                        return {
+                            "success": False, 
+                            "message": "无法唤醒登录，未找到wxid信息",
+                            "uuid": login_uuid,
+                            "need_manual": True  # 告诉前端可能需要手动输入URL
+                        }
+                    
+                    # 尝试唤醒登录
+                    logger.info(f"尝试唤醒登录，wxid={wxid}")
+                    cached_info = await client.get_cached_info(wxid)
+                    if cached_info:
+                        logger.info(f"找到账号缓存信息: {cached_info}")
+                        uuid = await client.awaken_login(wxid)
+                        logger.info(f"唤醒登录成功，uuid={uuid}")
+                        return {"success": True, "method": "awaken", "uuid": uuid}
+                    else:
+                        logger.warning(f"未找到账号 {wxid} 的缓存信息")
+                        login_uuid = str(uuid.uuid4())
+                        return {
+                            "success": False, 
+                            "message": "无法唤醒登录，账号缓存不存在",
+                            "uuid": login_uuid,
+                            "need_manual": True  # 告诉前端可能需要手动输入URL
+                        }
+                except Exception as e:
+                    logger.error(f"唤醒登录过程中出现异常: {e}")
+                    logger.error(traceback.format_exc())
+                    login_uuid = str(uuid.uuid4())
+                    return {
+                        "success": False, 
+                        "message": f"唤醒登录失败: {str(e)}",
+                        "uuid": login_uuid,
+                        "need_manual": True  # 告诉前端可能需要手动输入URL
+                    }
         
         return {"success": False, "message": "不支持的登录方式"}
     except Exception as e:

@@ -28,6 +28,16 @@
                                     <i class="bi bi-lightbulb"></i> 提示：如果遇到登录问题，可以尝试先启动机器人，然后使用"唤醒登录"功能获取日志中的登录链接。
                                 </small>
                             </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i> 日志可能位置：
+                                    <ul class="mb-0 ps-3">
+                                        <li>项目根目录/logs/XYBot_*.log</li>
+                                        <li>项目根目录/*.log</li>
+                                        <li>Docker环境：/logs/*.log</li>
+                                    </ul>
+                                </small>
+                            </div>
                         </div>
                         <div id="loginStatus" class="alert alert-info d-none">
                             等待登录...
@@ -179,6 +189,21 @@
             const data = await response.json();
             
             if (!data.success) {
+                // 如果失败但服务器指示需要手动输入，显示手动输入区域而不是直接报错
+                if (data.need_manual) {
+                    console.log('需要手动输入二维码URL');
+                    document.getElementById('manualQrcode').classList.remove('d-none');
+                    statusEl.textContent = data.message || '未找到登录二维码，请从日志中手动复制';
+                    statusEl.className = 'alert alert-warning';
+                    
+                    // 保存UUID用于登录检查
+                    if (data.uuid) {
+                        loginUUID = data.uuid;
+                    }
+                    
+                    return;
+                }
+                
                 throw new Error(data.message || '登录请求失败');
             }
             
@@ -195,7 +220,7 @@
                 startCheckLogin();
                 
                 // 显示状态
-                statusEl.textContent = '请使用微信扫描二维码登录';
+                statusEl.textContent = data.message || '请使用微信扫描二维码登录';
             } else if (data.method === 'awaken') {
                 // 保存登录信息
                 loginUUID = data.uuid;
@@ -205,9 +230,9 @@
                     // 如果唤醒登录也返回了二维码URL，处理方式与qrcode类似
                     deviceID = data.device_id;
                     showQRCode(data.url);
-                    statusEl.textContent = '已找到登录二维码，请使用微信扫描登录';
+                    statusEl.textContent = data.message || '已找到登录二维码，请使用微信扫描登录';
                 } else {
-                    statusEl.textContent = '已发送唤醒登录请求，请在手机上确认';
+                    statusEl.textContent = data.message || '已发送唤醒登录请求，请在手机上确认';
                     // 如果没有找到二维码URL，显示手动输入区域
                     document.getElementById('manualQrcode').classList.remove('d-none');
                 }
@@ -225,6 +250,12 @@
     
     // 显示二维码
     function showQRCode(url) {
+        if (!url) {
+            console.error('未提供二维码URL');
+            showLoginError('无法生成二维码：未提供URL');
+            return;
+        }
+        
         const qrcodeContainer = document.getElementById('qrcodeContainer');
         const qrcodeElement = document.getElementById('qrcode');
         
