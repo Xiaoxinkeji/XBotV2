@@ -17,8 +17,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     # 确保所有依赖都被安装，不跳过任何依赖
     pip install --no-cache-dir --ignore-installed -r requirements.txt && \
+    # 安装额外依赖
+    if [ -f "requirements-extra.txt" ]; then pip install --no-cache-dir -r requirements-extra.txt; fi && \
     # 安装可选依赖，确保功能完整性
     if [ -f "requirements-optional.txt" ]; then pip install --no-cache-dir -r requirements-optional.txt; fi && \
+    # 安装关键依赖
+    pip install --no-cache-dir PyJWT && \
     # 安装特殊包
     echo "尝试安装xywechatpad-binary..." && \
     # 方法1: 从脚本安装
