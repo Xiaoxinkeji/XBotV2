@@ -27,6 +27,7 @@ import re
 import importlib.util
 import git
 from pydantic import BaseModel
+import traceback
 
 # 确保能导入主项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -617,6 +618,41 @@ def control_robot(action: str):
         logger.error(f"控制机器人失败: {e}")
         return {"success": False, "message": f"控制机器人失败: {str(e)}"}
 
+# 获取二维码URL
+def get_qrcode_from_logs():
+    """从最新的日志文件中获取登录二维码URL"""
+    logs_dir = Path(PROJECT_ROOT) / "logs"
+    if not logs_dir.exists():
+        return None
+    
+    # 查找最新的日志文件
+    log_files = sorted(logs_dir.glob("XYBot_*.log"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not log_files:
+        return None
+    
+    latest_log = log_files[0]
+    qrcode_url = None
+    
+    # 从日志文件中查找包含二维码URL的行
+    try:
+        with open(latest_log, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            # 倒序查找，因为最新的登录二维码应该在日志文件的后面
+            for line in reversed(lines):
+                if "https://login.weixin.qq.com/qrcode/" in line or "https://long.open.weixin.qq.com/" in line:
+                    # 提取URL
+                    start_index = line.find("https://")
+                    if start_index != -1:
+                        end_index = line.find(" ", start_index)
+                        if end_index == -1:
+                            end_index = len(line)
+                        qrcode_url = line[start_index:end_index].strip()
+                        break
+    except Exception as e:
+        logger.error(f"读取日志文件失败: {e}")
+    
+    return qrcode_url
+
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, username: str = Depends(get_current_username)):
@@ -810,33 +846,34 @@ async def control_robot_api(action: str, username: str = Depends(get_current_use
 
 @app.post("/api/wechat/login")
 async def wechat_login(login_method: str = Form(...), username: str = Depends(get_current_username)):
+    """处理微信登录请求"""
     try:
-        if not MODULES_LOADED:
-            return {"success": False, "message": "模块未加载，无法登录"}
-        
-        # 导入WechatAPI
-        import WechatAPI
-        
-        # 创建WechatAPI客户端
-        api_config = config.get("WechatAPIServer", {})
-        client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
-        
-        # 获取设备信息
-        robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
-        if os.path.exists(robot_stat_path):
-            with open(robot_stat_path, "r") as f:
-                robot_stat = json.load(f)
-            
-            device_name = robot_stat.get("device_name", None)
-            device_id = robot_stat.get("device_id", None)
-            wxid = robot_stat.get("wxid", None)
-        else:
-            device_name = None
-            device_id = None
-            wxid = None
-        
         if login_method == "qrcode":
-            # 创建必要的设备信息
+            # 原有的扫码登录逻辑
+            if not MODULES_LOADED:
+                return {"success": False, "message": "模块未加载，无法登录"}
+            
+            # 导入WechatAPI
+            import WechatAPI
+            
+            # 创建WechatAPI客户端
+            api_config = config.get("WechatAPIServer", {})
+            client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
+            
+            # 获取设备信息
+            robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
+            if os.path.exists(robot_stat_path):
+                with open(robot_stat_path, "r") as f:
+                    robot_stat = json.load(f)
+                
+                device_name = robot_stat.get("device_name", None)
+                device_id = robot_stat.get("device_id", None)
+                wxid = robot_stat.get("wxid", None)
+            else:
+                device_name = None
+                device_id = None
+                wxid = None
+            
             if not device_name:
                 device_name = client.create_device_name()
             if not device_id:
@@ -855,20 +892,69 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
             }
         
         elif login_method == "awaken":
-            if not wxid:
-                return {"success": False, "message": "无法唤醒登录，未找到wxid信息"}
+            # 唤醒登录逻辑
+            # 先尝试控制机器人启动(如果未运行)
+            if not is_robot_running():
+                control_robot("start")
+                # 等待机器人启动
+                for _ in range(10):
+                    if is_robot_running():
+                        break
+                    await asyncio.sleep(1)
             
-            # 尝试唤醒登录
-            if await client.get_cached_info(wxid):
-                uuid = await client.awaken_login(wxid)
-                return {"success": True, "method": "awaken", "uuid": uuid}
+            # 从日志中获取二维码URL
+            qrcode_url = get_qrcode_from_logs()
+            
+            if qrcode_url:
+                # 如果找到二维码URL，使用与扫码登录相同的方式返回
+                login_uuid = str(uuid.uuid4())
+                return {
+                    "success": True,
+                    "method": "qrcode",
+                    "url": qrcode_url,
+                    "uuid": login_uuid,
+                    "device_id": None
+                }
             else:
-                return {"success": False, "message": "无法唤醒登录，账号缓存不存在"}
+                # 如果没找到二维码URL，使用原来的唤醒登录逻辑
+                if not MODULES_LOADED:
+                    return {"success": False, "message": "模块未加载，无法登录"}
+                
+                # 导入WechatAPI
+                import WechatAPI
+                
+                # 创建WechatAPI客户端
+                api_config = config.get("WechatAPIServer", {})
+                client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
+                
+                # 获取设备信息
+                robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
+                if os.path.exists(robot_stat_path):
+                    with open(robot_stat_path, "r") as f:
+                        robot_stat = json.load(f)
+                    
+                    device_name = robot_stat.get("device_name", None)
+                    device_id = robot_stat.get("device_id", None)
+                    wxid = robot_stat.get("wxid", None)
+                else:
+                    device_name = None
+                    device_id = None
+                    wxid = None
+                
+                if not wxid:
+                    return {"success": False, "message": "无法唤醒登录，未找到wxid信息"}
+                
+                # 尝试唤醒登录
+                if await client.get_cached_info(wxid):
+                    uuid = await client.awaken_login(wxid)
+                    return {"success": True, "method": "awaken", "uuid": uuid}
+                else:
+                    return {"success": False, "message": "无法唤醒登录，账号缓存不存在"}
         
-        else:
-            return {"success": False, "message": "不支持的登录方式"}
-            
+        return {"success": False, "message": "不支持的登录方式"}
     except Exception as e:
+        logger.error(f"登录请求异常: {e}")
+        logger.error(traceback.format_exc())
         return {"success": False, "message": f"登录请求失败: {str(e)}"}
 
 @app.get("/api/wechat/check_login/{uuid}")
