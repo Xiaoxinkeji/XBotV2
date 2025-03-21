@@ -850,7 +850,7 @@
             // 更新日志容器
             fullLogContainer.innerHTML = '';
             
-            if (data.logs.length === 0) {
+            if (!data.logs || data.logs.length === 0) {
                 fullLogContainer.innerHTML = '<div class="text-center py-3"><p>暂无日志</p></div>';
                 return;
             }
@@ -865,12 +865,17 @@
                 if (typeof log === 'object' && log !== null) {
                     logLevel = (log.level || 'INFO').toLowerCase();
                     logTime = log.time ? new Date(log.time).toLocaleString() : '';
-                    logContent = log.content || log.message || '';
-                } else {
+                    logContent = log.content || log.message || JSON.stringify(log);
+                } else if (typeof log === 'string') {
                     // 尝试从字符串中解析
                     logContent = log;
-                    if (log.includes('ERROR')) logLevel = 'error';
-                    if (log.includes('WARNING')) logLevel = 'warning';
+                    // 更精确的日志级别判断
+                    if (log.includes('ERROR') || log.includes('错误')) logLevel = 'error';
+                    else if (log.includes('WARNING') || log.includes('WARN') || log.includes('警告')) logLevel = 'warning';
+                    else if (log.includes('DEBUG') || log.includes('调试')) logLevel = 'debug';
+                } else {
+                    // 未知格式的日志
+                    logContent = '未知日志格式: ' + JSON.stringify(log);
                 }
                 
                 const logEntry = document.createElement('div');
@@ -888,7 +893,9 @@
         } catch (error) {
             console.error('刷新完整日志错误:', error);
             const fullLogContainer = document.getElementById('fullLogContainer');
-            fullLogContainer.innerHTML = '<div class="text-center py-3"><p class="text-danger">获取日志失败</p></div>';
+            if (fullLogContainer) {
+                fullLogContainer.innerHTML = '<div class="text-center py-3"><p class="text-danger">获取日志失败</p></div>';
+            }
         }
     }
     

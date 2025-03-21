@@ -157,49 +157,56 @@ def get_robot_status():
     message_count = 0
     
     # 检查机器人状态
-    if os.path.exists(robot_stat_path):
-        with open(robot_stat_path, "r") as f:
-            robot_stat = json.load(f)
-        wxid = robot_stat.get("wxid", "")
-        
-        # 通过keyvalDB检查登录状态
-        if MODULES_LOADED and robot_online:
-            try:
-                # 获取已加载插件数量
-                if plugin_manager:
-                    # 检查plugin_manager是否有loaded_plugins属性
-                    if hasattr(plugin_manager, 'loaded_plugins'):
-                        plugin_count = len(plugin_manager.loaded_plugins)
-                    elif hasattr(plugin_manager, 'plugins'):
-                        plugin_count = len(plugin_manager.plugins)
-                    else:
-                        # 使用文件系统计算活跃插件数量
-                        plugin_count = len([p for p in get_plugins() if p['enabled']])
-                
-                # 从数据库获取消息数量
-                # 此处可以添加消息统计逻辑
-            except Exception as e:
-                logger.error(f"获取机器人状态出错: {e}")
-                # 发生错误时使用文件系统方法获取插件数量
+    try:
+        if os.path.exists(robot_stat_path):
+            with open(robot_stat_path, "r", encoding='utf-8') as f:
+                robot_stat = json.load(f)
+            wxid = robot_stat.get("wxid", "")
+            
+            # 通过keyvalDB检查登录状态
+            if MODULES_LOADED and robot_online:
                 try:
-                    plugin_count = len([p for p in get_plugins() if p['enabled']])
-                except:
-                    plugin_count = 0
+                    # 获取已加载插件数量
+                    if plugin_manager:
+                        # 检查plugin_manager是否有loaded_plugins属性
+                        if hasattr(plugin_manager, 'loaded_plugins'):
+                            plugin_count = len(plugin_manager.loaded_plugins)
+                        elif hasattr(plugin_manager, 'plugins'):
+                            plugin_count = len(plugin_manager.plugins)
+                        else:
+                            # 使用文件系统计算活跃插件数量
+                            plugin_count = len([p for p in get_plugins() if p['enabled']])
+                    
+                    # 从数据库获取消息数量
+                    # 此处可以添加消息统计逻辑
+                except Exception as e:
+                    logger.error(f"获取机器人状态出错: {e}")
+                    # 发生错误时使用文件系统方法获取插件数量
+                    try:
+                        plugin_count = len([p for p in get_plugins() if p['enabled']])
+                    except:
+                        plugin_count = 0
+    except Exception as e:
+        logger.error(f"读取机器人状态文件出错: {e}")
+        robot_online = False
     
     # 获取机器人个人信息
-    profile_path = PROJECT_ROOT / "resource" / "profile.json"
-    if os.path.exists(profile_path):
-        try:
-            with open(profile_path, "r") as f:
-                profile = json.load(f)
-            nickname = profile.get("nickname", "")
-            alias = profile.get("alias", "")
-        except:
-            pass
+    try:
+        profile_path = PROJECT_ROOT / "resource" / "profile.json"
+        if os.path.exists(profile_path):
+            try:
+                with open(profile_path, "r", encoding='utf-8') as f:
+                    profile = json.load(f)
+                nickname = profile.get("nickname", "")
+                alias = profile.get("alias", "")
+            except:
+                pass
+    except Exception as e:
+        logger.error(f"读取个人资料文件出错: {e}")
             
     return {
         "online": robot_online,
-        "wxid": wxid,
+        "wxid": wxid or "",
         "nickname": nickname or "XYBot",
         "alias": alias or "xybot",
         "plugin_count": plugin_count,
@@ -776,10 +783,21 @@ def get_qrcode_from_logs():
 def get_recent_logs(limit=10, search=None, level=None):
     global _logs_cache
     
+    # 确保_logs_cache包含所有必需的字段
+    if not _logs_cache:
+        _logs_cache = {
+            'last_update': 0,
+            'logs': [],
+            'cache_timeout': 5  # 默认缓存超时时间为5秒
+        }
+    elif 'cache_timeout' not in _logs_cache:
+        _logs_cache['cache_timeout'] = 5
+    
     # 检查缓存是否有效
     current_time = time.time()
     if (_logs_cache and 
-        _logs_cache['last_update'] > current_time - _logs_cache["cache_timeout"] and
+        'last_update' in _logs_cache and
+        _logs_cache['last_update'] > current_time - _logs_cache.get("cache_timeout", 5) and
         'logs' in _logs_cache):
         logs = _logs_cache['logs']
         if search or level:
@@ -814,9 +832,11 @@ def get_recent_logs(limit=10, search=None, level=None):
                         matching_files.sort(key=os.path.getmtime, reverse=True)
                         log_files.extend(matching_files)
             except Exception as e:
-                logs.append({"time": time.strftime('%Y-%m-%d %H:%M:%S'), 
-                           "level": "ERROR", 
-                           "content": f"搜索日志文件时出错 {log_dir}/{pattern}: {str(e)}"})
+                logs.append({
+                    "time": time.strftime('%Y-%m-%d %H:%M:%S'), 
+                    "level": "ERROR", 
+                    "content": f"搜索日志文件时出错 {log_dir}/{pattern}: {str(e)}"
+                })
     
     if not log_files:
         # 如果没有找到日志文件，返回提示信息
@@ -824,29 +844,39 @@ def get_recent_logs(limit=10, search=None, level=None):
         
         # 添加示例日志和警告
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-        sample_logs.append({"time": current_time, 
-                          "level": "WARNING", 
-                          "content": "未找到日志文件。请检查以下目录："})
+        sample_logs.append({
+            "time": current_time, 
+            "level": "WARNING", 
+            "content": "未找到日志文件。请检查以下目录："
+        })
         
         for log_dir in log_dirs:
-            sample_logs.append({"time": current_time, 
-                              "level": "INFO", 
-                              "content": f"- {os.path.abspath(log_dir)}"})
+            sample_logs.append({
+                "time": current_time, 
+                "level": "INFO", 
+                "content": f"- {os.path.abspath(log_dir)}"
+            })
             
-        sample_logs.append({"time": current_time, 
-                          "level": "INFO", 
-                          "content": "使用日志模式: " + ", ".join(patterns)})
+        sample_logs.append({
+            "time": current_time, 
+            "level": "INFO", 
+            "content": "使用日志模式: " + ", ".join(patterns)
+        })
         
-        sample_logs.append({"time": current_time, 
-                          "level": "WARNING", 
-                          "content": "请确保XYBot正在运行并生成日志文件"})
+        sample_logs.append({
+            "time": current_time, 
+            "level": "WARNING", 
+            "content": "请确保XYBot正在运行并生成日志文件"
+        })
         
         # 添加示例二维码URL
         qr_time = current_time
         qr_example = f"请使用微信扫描二维码登录: https://open.weixin.qq.com/connect/qrconnect?appid=example"
-        sample_logs.append({"time": qr_time, 
-                          "level": "INFO", 
-                          "content": qr_example})
+        sample_logs.append({
+            "time": qr_time, 
+            "level": "INFO", 
+            "content": qr_example
+        })
         
         # 更新缓存
         _logs_cache = {
@@ -856,9 +886,8 @@ def get_recent_logs(limit=10, search=None, level=None):
         }
         
         # 返回过滤后的样本日志
-        if search or level:
-            return filter_logs(sample_logs, search, level)[:limit]
-        return sample_logs[:limit]
+        filtered_logs = filter_logs(sample_logs, search, level) if (search or level) else sample_logs
+        return filtered_logs[:limit]
     
     # 读取最新的日志文件内容
     logs = []
@@ -869,98 +898,106 @@ def get_recent_logs(limit=10, search=None, level=None):
             # 获取文件大小
             file_size = os.path.getsize(log_file)
             
-            # 从文件尾部开始读取，最多读取100KB以避免性能问题
-            read_size = min(file_size, 100 * 1024)
+            # 如果文件太大，只读取末尾的部分
+            read_size = min(file_size, 50 * 1024)  # 最多读取50KB
             
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                 if read_size < file_size:
                     f.seek(file_size - read_size)
-                    # 跳过第一行，因为可能是不完整的
+                    # 丢弃第一行，因为可能是不完整的
                     f.readline()
                 
-                # 读取剩余内容
-                content = f.read()
+                lines = f.readlines()
                 
-                # 分割为行并处理每一行
-                lines = content.splitlines()
-                
-                # 使用前1000行避免内存问题
-                for line in lines[-1000:]:
+                # 处理每一行日志
+                for line in lines:
                     line = line.strip()
                     if not line:
                         continue
                     
-                    # 尝试提取时间戳、日志级别和内容
-                    try:
-                        # 尝试匹配 "YYYY-MM-DD HH:mm:ss | LEVEL | MESSAGE" 格式
-                        parts = line.split(' | ', 2)
-                        if len(parts) >= 3:
-                            time_str, level, message = parts
-                            logs.append({"time": time_str, "level": level, "content": message})
-                        else:
-                            # 尝试匹配其他常见的日志格式
-                            time_match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
-                            level_match = re.search(r'\b(ERROR|WARNING|INFO|DEBUG|TRACE)\b', line, re.IGNORECASE)
-                            
-                            if time_match:
-                                time_str = time_match.group(1)
-                                if level_match:
-                                    level = level_match.group(1)
-                                    content_start = line.find(level) + len(level)
-                                    content = line[content_start:].strip()
-                                else:
-                                    level = "INFO"
-                                    content = line[time_match.end():].strip()
-                                
-                                logs.append({"time": time_str, "level": level, "content": content})
-                            else:
-                                # 无法解析格式的行作为INFO级别日志
-                                logs.append({"time": time.strftime('%Y-%m-%d %H:%M:%S'), 
-                                           "level": "INFO", 
-                                           "content": line})
-                    except Exception as e:
-                        logs.append({"time": time.strftime('%Y-%m-%d %H:%M:%S'), 
-                                   "level": "ERROR", 
-                                   "content": f"解析日志行时出错: {str(e)}"})
-        
+                    # 尝试解析日志行
+                    log_entry = parse_log_line(line)
+                    if log_entry:
+                        logs.append(log_entry)
+                    else:
+                        # 如果无法解析，作为纯文本添加
+                        logs.append({
+                            "time": time.strftime('%Y-%m-%d %H:%M:%S'),
+                            "level": "INFO",
+                            "content": line
+                        })
         except Exception as e:
-            # 记录文件读取错误
-            logs.append({"time": time.strftime('%Y-%m-%d %H:%M:%S'), 
-                       "level": "ERROR", 
-                       "content": f"读取日志文件 {log_file} 时出错: {str(e)}"})
+            # 记录读取日志文件时的错误
+            logger.error(f"读取日志文件 {log_file} 时出错: {str(e)}")
+            logs.append({
+                "time": time.strftime('%Y-%m-%d %H:%M:%S'),
+                "level": "ERROR",
+                "content": f"读取日志文件 {os.path.basename(log_file)} 时出错: {str(e)}"
+            })
     
-    # 检查是否提取到了QR码URL
-    has_qr_code = False
-    for log in logs:
-        content = log.get("content", "")
-        if "https://login.weixin.qq.com/" in content or "https://open.weixin.qq.com/" in content or "http://weixin.qq.com/x/" in content:
-            has_qr_code = True
-            break
+    # 按时间排序，最新的在前
+    logs.sort(key=lambda x: x.get('time', ''), reverse=True)
     
-    # 如果没有找到QR码URL，添加提示消息
-    if not has_qr_code:
-        logs.append({"time": time.strftime('%Y-%m-%d %H:%M:%S'), 
-                   "level": "INFO", 
-                   "content": "未在日志中找到微信登录二维码链接"})
-    
-    # 按照时间排序（如果时间格式一致）
-    try:
-        logs.sort(key=lambda x: x.get("time", ""), reverse=True)
-    except Exception:
-        # 如果排序失败，保持原始顺序
-        pass
+    # 记录找到的日志数量
+    logger.info(f"API获取到 {len(logs)} 条日志")
     
     # 更新缓存
     _logs_cache = {
         'last_update': time.time(),
         'logs': logs,
-        'cache_timeout': 5  # 添加缓存超时
+        'cache_timeout': 5  # 刷新缓存超时
     }
     
     # 返回过滤后的日志
-    if search or level:
-        return filter_logs(logs, search, level)[:limit]
-    return logs[:limit]
+    filtered_logs = filter_logs(logs, search, level) if (search or level) else logs
+    return filtered_logs[:limit]
+
+# 解析日志行
+def parse_log_line(line):
+    try:
+        # 尝试多种日志格式
+        # 格式1: [2023-09-10 15:20:45] [INFO] 日志内容
+        match1 = re.match(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \[([A-Z]+)\] (.*)', line)
+        if match1:
+            return {
+                "time": match1.group(1),
+                "level": match1.group(2),
+                "content": match1.group(3)
+            }
+        
+        # 格式2: 2023-09-10 15:20:45 | INFO | 日志内容
+        match2 = re.match(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \| ([A-Z]+) \| (.*)', line)
+        if match2:
+            return {
+                "time": match2.group(1),
+                "level": match2.group(2),
+                "content": match2.group(3)
+            }
+        
+        # 格式3: 2023/09/10 15:20:45 [INFO] 日志内容
+        match3 = re.match(r'(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[([A-Z]+)\] (.*)', line)
+        if match3:
+            return {
+                "time": match3.group(1).replace('/', '-'),
+                "level": match3.group(2),
+                "content": match3.group(3)
+            }
+        
+        # 格式4: [15:20:45] [INFO] 日志内容 (没有日期的情况)
+        match4 = re.match(r'\[(\d{2}:\d{2}:\d{2})\] \[([A-Z]+)\] (.*)', line)
+        if match4:
+            today = time.strftime('%Y-%m-%d')
+            return {
+                "time": f"{today} {match4.group(1)}",
+                "level": match4.group(2),
+                "content": match4.group(3)
+            }
+        
+        # 如果无法匹配任何格式，返回None
+        return None
+    except Exception as e:
+        logger.error(f"解析日志行出错: {str(e)} - 行内容: {line}")
+        return None
 
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
@@ -1117,6 +1154,11 @@ async def get_settings_page(request: Request, username: str = Depends(get_curren
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login_page(request: Request, username: str = Depends(get_current_username)):
+    return templates.TemplateResponse("login.html", {"request": request, "robot": get_robot_status()})
+
+@app.post("/login", response_class=HTMLResponse)
+async def post_login_page(request: Request, username: str = Depends(get_current_username)):
+    # 处理登录表单提交，但实际上我们只是返回相同的页面，因为登录处理是通过JavaScript完成的
     return templates.TemplateResponse("login.html", {"request": request, "robot": get_robot_status()})
 
 # API路由
@@ -1583,15 +1625,42 @@ async def get_events_api(limit: int = 10, username: str = Depends(get_current_us
 
 def filter_logs(logs, search=None, level=None):
     """根据搜索条件过滤日志"""
+    if not logs:
+        return []
+        
     filtered_logs = logs
     
     # 按日志级别过滤
-    if level:
-        filtered_logs = [log for log in filtered_logs if log.get("level", "").upper() == level.upper()]
+    if level and level.lower() != 'all':
+        filtered_logs = [
+            log for log in filtered_logs 
+            if log and (log.get("level", "").upper() == level.upper() or 
+                       (isinstance(log, str) and level.upper() in log.upper()))
+        ]
     
     # 按关键词搜索
     if search:
-        filtered_logs = [log for log in filtered_logs if search.lower() in log.get("content", "").lower()]
+        search_lower = search.lower()
+        filtered_logs = []
+        for log in logs:
+            # 处理对象格式日志
+            if isinstance(log, dict):
+                content = log.get("content", "") or log.get("message", "")
+                if isinstance(content, str) and search_lower in content.lower():
+                    filtered_logs.append(log)
+            # 处理字符串格式日志
+            elif isinstance(log, str) and search_lower in log.lower():
+                filtered_logs.append(log)
+    
+    # 确保所有日志对象都有content字段
+    for log in filtered_logs:
+        if isinstance(log, dict) and ("content" not in log or log["content"] is None):
+            # 尝试从message字段获取内容
+            if "message" in log and log["message"] is not None:
+                log["content"] = log["message"]
+            else:
+                # 设置默认内容
+                log["content"] = "(无内容)"
     
     return filtered_logs
 

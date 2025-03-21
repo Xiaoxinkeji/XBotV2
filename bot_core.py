@@ -69,7 +69,10 @@ async def bot_core():
         default_config = {
             "wxid": "",
             "device_name": "",
-            "device_id": ""
+            "device_id": "",
+            "online": False,
+            "login_time": 0,
+            "last_active": 0
         }
         os.makedirs(os.path.dirname(robot_stat_path), exist_ok=True)
         with open(robot_stat_path, "w") as f:
@@ -121,6 +124,9 @@ async def bot_core():
         robot_stat["wxid"] = bot.wxid
         robot_stat["device_name"] = device_name
         robot_stat["device_id"] = device_id
+        robot_stat["online"] = True
+        robot_stat["login_time"] = int(time.time())
+        robot_stat["last_active"] = int(time.time())
         with open("resource/robot_stat.json", "w") as f:
             json.dump(robot_stat, f)
 
@@ -132,17 +138,43 @@ async def bot_core():
 
         logger.info("登录账号信息: wxid: {}  昵称: {}  微信号: {}  手机号: {}", bot.wxid, bot.nickname, bot.alias,
                     bot.phone)
+        
+        # 保存用户信息到profile.json，供Web界面读取
+        profile_data = {
+            "wxid": bot.wxid,
+            "nickname": bot.nickname,
+            "alias": bot.alias,
+            "phone": bot.phone,
+            "login_time": int(time.time())
+        }
+        profile_path = script_dir / "resource" / "profile.json"
+        with open(profile_path, "w", encoding="utf-8") as f:
+            json.dump(profile_data, f, ensure_ascii=False)
+        logger.success("用户信息已保存到profile.json")
 
     else:  # 已登录
         bot.wxid = wxid
         profile = await bot.get_profile()
 
         bot.nickname = profile.get("NickName").get("string")
-        bot.alias = profile.get("Alias")
-        bot.phone = profile.get("BindMobile").get("string")
-
-        logger.info("登录账号信息: wxid: {}  昵称: {}  微信号: {}  手机号: {}", bot.wxid, bot.nickname, bot.alias,
-                    bot.phone)
+        
+        # 获取更多个人信息
+        try:
+            bot.alias = profile.get("Alias") or ""
+            
+            # 保存或更新用户信息到profile.json，供Web界面读取
+            profile_data = {
+                "wxid": bot.wxid,
+                "nickname": bot.nickname,
+                "alias": bot.alias,
+                "login_time": int(time.time())
+            }
+            profile_path = script_dir / "resource" / "profile.json"
+            with open(profile_path, "w", encoding="utf-8") as f:
+                json.dump(profile_data, f, ensure_ascii=False)
+            logger.success("用户信息已保存到profile.json")
+        except Exception as e:
+            logger.warning("获取更多个人信息失败: {}", e)
 
     logger.info("登录设备信息: device_name: {}  device_id: {}", device_name, device_id)
 
@@ -184,6 +216,28 @@ async def bot_core():
     loaded_plugins = await plugin_manager.load_plugins_from_directory(bot, load_disabled_plugin=False)
     logger.success(f"已加载插件: {loaded_plugins}")
 
+    # 更新机器人状态文件，添加online标记
+    try:
+        # 读取当前状态
+        with open(robot_stat_path, "r", encoding="utf-8") as f:
+            current_stat = json.load(f)
+        
+        # 更新在线状态
+        current_stat["online"] = True
+        current_stat["login_time"] = int(time.time())
+        current_stat["wxid"] = bot.wxid
+        current_stat["nickname"] = bot.nickname
+        current_stat["alias"] = bot.alias
+        current_stat["last_active"] = int(time.time())
+        
+        # 保存更新后的状态
+        with open(robot_stat_path, "w", encoding="utf-8") as f:
+            json.dump(current_stat, f, ensure_ascii=False)
+        
+        logger.success("机器人状态已更新：在线")
+    except Exception as e:
+        logger.error(f"更新机器人状态文件失败: {e}")
+
     # ========== 开始接受消息 ========== #
 
     # 先接受堆积消息
@@ -213,10 +267,43 @@ async def bot_core():
             logger.warning("获取新消息失败 {}", e)
             await asyncio.sleep(5)
             continue
+            
+        # 更新最后活动时间
+        try:
+            with open(robot_stat_path, "r", encoding="utf-8") as f:
+                current_stat = json.load(f)
+            current_stat["last_active"] = int(time.time())
+            with open(robot_stat_path, "w", encoding="utf-8") as f:
+                json.dump(current_stat, f, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"更新活动时间失败: {e}")
 
         data = data.get("AddMsgs")
-        if data:
-            for message in data:
-                asyncio.create_task(xybot.process_message(message))
-        # 使用异步睡眠替代忙等待循环
+        if not data:
+            await asyncio.sleep(1)
+            continue
+
+        logger.debug("接收到 {} 条消息", len(data))
+
+        for msg in data:
+            # 使用原来的消息处理方式，创建异步任务处理消息
+            asyncio.create_task(xybot.process_message(msg))
+
         await asyncio.sleep(0.5)
+
+    # 在函数结束前添加清理代码
+    try:
+        # 更新机器人状态为离线
+        if os.path.exists(robot_stat_path):
+            with open(robot_stat_path, "r", encoding="utf-8") as f:
+                current_stat = json.load(f)
+            
+            current_stat["online"] = False
+            current_stat["last_active"] = int(time.time())
+            
+            with open(robot_stat_path, "w", encoding="utf-8") as f:
+                json.dump(current_stat, f, ensure_ascii=False)
+            
+            logger.success("机器人状态已更新：离线")
+    except Exception as e:
+        logger.error(f"更新机器人离线状态失败: {e}")

@@ -11,14 +11,14 @@
                     <h4 class="mb-0">微信登录</h4>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" action="/login">
                         <div class="mb-3">
                             <label for="qrCodeInput" class="form-label">二维码链接</label>
                             <input type="text" class="form-control" id="qrCodeInput" name="qr_link" value="{{ qr_link }}" placeholder="请输入微信登录二维码链接">
                         </div>
                         <div class="d-grid gap-2">
-                            <button type="button" id="generateQrcode" class="btn btn-primary">生成二维码</button>
-                            <button id="viewLogs" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#logsModal">
+                            <button type="button" id="generateQrcode" class="btn btn-primary" title="生成二维码">生成二维码</button>
+                            <button id="viewLogs" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#logsModal" title="查看日志">
                                 <i class="bi bi-journal-text"></i> 查看日志
                             </button>
                         </div>

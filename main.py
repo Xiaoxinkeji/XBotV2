@@ -58,8 +58,8 @@ async def main():
     # 检查是否启用Web管理界面
     web_enabled = config.get("WebInterface", {}).get("enable", False)
     
-    # 启动Web服务器
-    if web_enabled:
+    # 创建Web服务器启动函数
+    def start_web_interface():
         try:
             from web import start_web_server
             # 使用线程启动Web服务器
@@ -99,7 +99,21 @@ async def main():
         observer.start()
 
         try:
-            await bot_core()
+            # 先启动机器人核心
+            logger.info("正在启动机器人核心...")
+            # 使用asyncio创建机器人任务，但不等待它完成
+            bot_task = asyncio.create_task(bot_core())
+            
+            # 等待机器人初始化完成（给予3秒时间进行初始化）
+            await asyncio.sleep(3)
+            
+            # 然后启动Web界面
+            if web_enabled:
+                start_web_interface()
+            
+            # 等待机器人任务完成
+            await bot_task
+            
         except KeyboardInterrupt:
             logger.info("收到终止信号，正在关闭...")
             observer.stop()
@@ -115,7 +129,20 @@ async def main():
     else:
         # 直接运行主程序，不启用监控
         try:
-            await bot_core()
+            # 先启动机器人核心
+            logger.info("正在启动机器人核心...")
+            # 使用asyncio创建机器人任务，但不等待它完成
+            bot_task = asyncio.create_task(bot_core())
+            
+            # 等待机器人初始化完成（给予3秒时间进行初始化）
+            await asyncio.sleep(3)
+            
+            # 然后启动Web界面
+            if web_enabled:
+                start_web_interface()
+            
+            # 等待机器人任务完成
+            await bot_task
         except KeyboardInterrupt:
             logger.info("收到终止信号，正在关闭...")
         except Exception as e:
