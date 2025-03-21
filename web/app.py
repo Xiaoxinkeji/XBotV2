@@ -970,7 +970,109 @@ async def index(request: Request, username: str = Depends(get_current_username))
 
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
-    return get_robot_status()
+    try:
+        # 获取机器人状态
+        robot_status = get_robot_status()
+        
+        # 获取系统信息
+        import psutil
+        import platform
+        from datetime import datetime
+        
+        # 获取进程信息
+        process = psutil.Process(os.getpid())
+        memory_info = process.memory_info()
+        
+        # 系统信息
+        system_info = {
+            "version": robot_status.get("version", "v1.0.0"),
+            "uptime": int((datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds()),
+            "memory": memory_info.rss,
+            "cpu": round(process.cpu_percent(), 2),
+            "platform": platform.platform(),
+            "python_version": platform.python_version()
+        }
+        
+        # 获取插件信息
+        plugins = get_plugins()
+        enabled_plugins = [p for p in plugins if p.get('enabled', False)]
+        
+        plugin_info = {
+            "total": len(plugins),
+            "enabled": len(enabled_plugins),
+            "disabled": len(plugins) - len(enabled_plugins),
+            "recent": enabled_plugins[:5]  # 获取5个最近的插件
+        }
+        
+        # 获取用户信息
+        user_info = {
+            "wxid": robot_status.get("wxid", ""),
+            "nickname": robot_status.get("nickname", ""),
+            "alias": robot_status.get("alias", ""),
+            "login_time": get_login_time()
+        }
+        
+        # 获取消息统计
+        message_stats = get_message_stats()
+        
+        # 获取最近日志
+        recent_logs = get_recent_logs(limit=5)
+        logs = filter_logs(recent_logs, None, None)
+        
+        return {
+            "success": True,
+            "robot": robot_status,
+            "system": system_info,
+            "plugins": plugin_info,
+            "user": user_info,
+            "message_stats": message_stats,
+            "recent_logs": logs
+        }
+    except Exception as e:
+        logger.error(f"获取状态信息时发生错误: {e}")
+        return {"success": False, "message": f"获取状态失败: {str(e)}"}
+
+# 获取登录时间
+def get_login_time():
+    try:
+        profile_path = PROJECT_ROOT / "resource" / "profile.json"
+        if os.path.exists(profile_path):
+            stat = os.stat(profile_path)
+            return datetime.fromtimestamp(stat.st_mtime).isoformat()
+    except Exception as e:
+        logger.error(f"获取登录时间失败: {e}")
+    return None
+
+# 获取消息统计
+def get_message_stats():
+    # 这里模拟消息统计，实际项目中应该从数据库或其他数据源获取
+    try:
+        # 如果有消息数据库，可以从这里获取实际统计
+        total_messages = 0
+        today_messages = 0
+        group_messages = 0
+        private_messages = 0
+        
+        # 如果机器人在线，尝试获取实际统计
+        robot_online, _ = is_robot_running()
+        if robot_online and MODULES_LOADED:
+            # 从数据库获取统计，这里是示例实现
+            pass
+            
+        return {
+            "total": total_messages,
+            "today": today_messages,
+            "group": group_messages,
+            "private": private_messages
+        }
+    except Exception as e:
+        logger.error(f"获取消息统计失败: {e}")
+        return {
+            "total": 0,
+            "today": 0,
+            "group": 0,
+            "private": 0
+        }
 
 @app.get("/plugins", response_class=HTMLResponse)
 async def get_plugins_page(request: Request, username: str = Depends(get_current_username)):
@@ -1426,6 +1528,58 @@ async def get_logs_api(limit: int = 10, search: str = None, level: str = None, u
         logger.error(f"获取日志失败: {e}")
         logger.error(traceback.format_exc())
         return {"success": False, "message": f"获取日志失败: {str(e)}"}
+
+@app.get("/api/logs/download")
+async def download_logs_api(username: str = Depends(get_current_username)):
+    """下载日志文件"""
+    try:
+        logs_dir = PROJECT_ROOT / "logs"
+        if not logs_dir.exists():
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            
+        # 找出最新的日志文件
+        log_files = list(logs_dir.glob("*.log"))
+        if not log_files:
+            return JSONResponse(content={"success": False, "message": "未找到日志文件"}, status_code=404)
+            
+        latest_log = max(log_files, key=lambda f: f.stat().st_mtime)
+        
+        # 返回文件
+        return FileResponse(
+            path=latest_log, 
+            filename=f"XBotV2_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
+            media_type="text/plain"
+        )
+    except Exception as e:
+        logger.error(f"下载日志时出错: {e}")
+        return JSONResponse(content={"success": False, "message": f"下载日志失败: {str(e)}"}, status_code=500)
+
+@app.get("/api/events")
+async def get_events_api(limit: int = 10, username: str = Depends(get_current_username)):
+    """获取系统事件"""
+    try:
+        # 这里可以从数据库获取系统事件，目前使用日志模拟
+        logs = get_recent_logs(limit=limit)
+        events = []
+        
+        # 过滤出重要事件
+        for log in filter_logs(logs, None, None):
+            # 检查是否是重要日志
+            if "登录" in (log.get("content") or log.get("message") or ""):
+                log["event_type"] = "login"
+            elif "启动" in (log.get("content") or log.get("message") or ""):
+                log["event_type"] = "start"
+            elif "错误" in (log.get("content") or log.get("message") or "") or log.get("level") == "ERROR":
+                log["event_type"] = "error"
+            else:
+                log["event_type"] = "info"
+                
+            events.append(log)
+            
+        return {"success": True, "events": events}
+    except Exception as e:
+        logger.error(f"获取系统事件时出错: {e}")
+        return {"success": False, "message": f"获取系统事件失败: {str(e)}"}
 
 def filter_logs(logs, search=None, level=None):
     """根据搜索条件过滤日志"""
