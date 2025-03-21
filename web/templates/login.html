@@ -35,37 +35,34 @@
 
 <!-- 日志模态框 -->
 <div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="logsModalLabel">系统日志</h5>
+                <h5 class="modal-title" id="logsModalLabel">最近日志</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <div class="row g-2">
-                        <div class="col-md-5">
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control" id="logSearch" placeholder="搜索日志...">
-                            </div>
-                        </div>
+                    <div class="row">
                         <div class="col-md-4">
-                            <select class="form-select" id="logLevel">
-                                <option value="">所有日志级别</option>
-                                <option value="ERROR">错误</option>
-                                <option value="WARNING">警告</option>
+                            <input type="text" id="logSearch" class="form-control" placeholder="搜索日志...">
+                        </div>
+                        <div class="col-md-3">
+                            <select id="logLevel" class="form-select">
+                                <option value="">所有级别</option>
                                 <option value="INFO">信息</option>
+                                <option value="WARNING">警告</option>
+                                <option value="ERROR">错误</option>
                                 <option value="DEBUG">调试</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <select class="form-select" id="logLimit">
-                                <option value="20">最近20条</option>
-                                <option value="50">最近50条</option>
-                                <option value="100">最近100条</option>
-                                <option value="200">最近200条</option>
-                            </select>
+                        <div class="col-md-5">
+                            <button id="refreshLogsBtn" class="btn btn-sm btn-primary me-2">
+                                <i class="bi bi-arrow-clockwise"></i> 刷新日志
+                            </button>
+                            <button id="extractQRCodeBtn" class="btn btn-sm btn-success">
+                                <i class="bi bi-qr-code"></i> 提取二维码
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -74,20 +71,24 @@
                     <div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">加载日志中...</p></div>
                 </div>
                 
-                <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="mt-2 d-flex justify-content-between align-items-center">
                     <div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="refreshLogsBtn">
-                            <i class="bi bi-arrow-clockwise"></i> 刷新日志
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-success ms-2" id="extractQRCodeBtn">
-                            <i class="bi bi-qr-code"></i> 提取二维码
-                        </button>
+                        <label for="logLimit" class="form-label mb-0 me-2">显示行数:</label>
+                        <select id="logLimit" class="form-select form-select-sm d-inline-block" style="width: 80px;">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
                     </div>
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="autoRefreshLogs" checked>
                         <label class="form-check-label" for="autoRefreshLogs">自动刷新</label>
                     </div>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>
@@ -120,41 +121,47 @@
     .logs-container {
         height: 400px;
         overflow-y: auto;
-        background-color: #1e1e1e;
-        color: #f8f8f8;
-        font-family: 'Courier New', monospace;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #212529;
+        font-family: "Courier New", monospace;
         padding: 10px;
         border-radius: 4px;
+        font-size: 0.9rem;
     }
 
     .log-line {
         padding: 2px 5px;
         white-space: pre-wrap;
         word-break: break-all;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        font-size: 13px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         line-height: 1.4;
     }
 
+    .log-line:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+
     .log-qrcode {
-        background-color: rgba(0, 128, 255, 0.2);
+        background-color: rgba(25, 135, 84, 0.1);
         font-weight: bold;
+        padding: 4px 5px;
     }
 
     .log-error {
-        color: #ff6b6b;
+        color: #dc3545;
     }
 
     .log-warning {
-        color: #ffd166;
+        color: #ffc107;
     }
 
     .log-info {
-        color: #4ecdc4;
+        color: #0d6efd;
     }
 
     .log-debug {
-        color: #a0a0a0;
+        color: #6c757d;
     }
 </style>
 {% endblock %}
@@ -355,17 +362,18 @@
                         logLevel = log.level || '';
                         logContent = log.content || '';
                         
-                        // 格式化为单行字符串
+                        // 格式化为单行字符串以保持与原始格式一致
                         logText = `${logTime} | ${logLevel} | ${logContent}`;
                         
                         // 根据日志级别设置CSS类
-                        if (logLevel.includes('ERROR') || logLevel.toLowerCase() === 'error') {
+                        const levelLower = logLevel.toLowerCase();
+                        if (levelLower.includes('error')) {
                             cssClass = 'log-error';
-                        } else if (logLevel.includes('WARNING') || logLevel.toLowerCase() === 'warning') {
+                        } else if (levelLower.includes('warning')) {
                             cssClass = 'log-warning';
-                        } else if (logLevel.includes('INFO') || logLevel.toLowerCase() === 'info') {
+                        } else if (levelLower.includes('info')) {
                             cssClass = 'log-info';
-                        } else if (logLevel.includes('DEBUG') || logLevel.toLowerCase() === 'debug') {
+                        } else if (levelLower.includes('debug')) {
                             cssClass = 'log-debug';
                         }
                     } else {
@@ -463,7 +471,13 @@
                     if (typeof log === 'string') {
                         logText = log;
                     } else if (typeof log === 'object' && log !== null) {
+                        // 对象格式的日志，优先使用content字段
                         logText = log.content || '';
+                        
+                        // 如果content字段为空，则尝试组合完整日志文本
+                        if (!logText && log.time && log.level) {
+                            logText = `${log.time} | ${log.level} | ${log.content || ''}`;
+                        }
                     } else {
                         logText = String(log);
                     }

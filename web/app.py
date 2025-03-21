@@ -102,11 +102,11 @@ class StatusResponse(BaseModel):
     plugin_count: int
     message_count: int
 
-# 日志缓存，避免频繁读取磁盘
+# 缓存变量定义
 _logs_cache = {
     "logs": [],
     "last_update": 0,
-    "cache_timeout": 5  # 缓存有效期（秒）
+    "cache_timeout": 5  # 缓存超时时间(秒)
 }
 
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
@@ -851,7 +851,8 @@ def get_recent_logs(limit=10, search=None, level=None):
         # 更新缓存
         _logs_cache = {
             'last_update': current_time,
-            'logs': sample_logs
+            'logs': sample_logs,
+            'cache_timeout': 5  # 添加缓存超时
         }
         
         # 返回过滤后的样本日志
@@ -952,7 +953,8 @@ def get_recent_logs(limit=10, search=None, level=None):
     # 更新缓存
     _logs_cache = {
         'last_update': time.time(),
-        'logs': logs
+        'logs': logs,
+        'cache_timeout': 5  # 添加缓存超时
     }
     
     # 返回过滤后的日志
