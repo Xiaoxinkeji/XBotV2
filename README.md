@@ -474,7 +474,7 @@ A: 1. 安装XBotV2到新服务器
 
 ## 联系与支持
 
-- GitHub: [https://github.com/xiaoxinkeji/xbotv2](https://github.com/xiaoxinkeji/xbotv2)
+- GitHub: [https://github.com/xiaoxinkeji](https://github.com/xiaoxinkeji)
 - 问题反馈: [https://github.com/xiaoxinkeji/xbotv2/issues](https://github.com/xiaoxinkeji/xbotv2/issues)
 - 电子邮件: [3264913523@qq.com](mailto:3264913523@qq.com)
 
@@ -496,4 +496,4 @@ XBotV2采用[MIT许可证](https://opensource.org/licenses/MIT)。
 
 ---
 
-© 2023-2024 XBotV2团队。保留所有权利。
+© 2025-2026 XBotV2团队。保留所有权利。
