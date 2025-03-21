@@ -33,57 +33,61 @@
     </div>
 </div>
 
-<!-- 日志查看模态框 -->
+<!-- 日志模态框 -->
 <div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="logsModalLabel">最近日志</h5>
+                <h5 class="modal-title" id="logsModalLabel">系统日志</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <input type="text" id="logSearch" class="form-control" placeholder="搜索日志...">
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="logSearch" placeholder="搜索日志...">
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <select id="logLevel" class="form-select">
-                                <option value="">所有级别</option>
-                                <option value="INFO">信息</option>
-                                <option value="WARNING">警告</option>
+                        <div class="col-md-4">
+                            <select class="form-select" id="logLevel">
+                                <option value="">所有日志级别</option>
                                 <option value="ERROR">错误</option>
+                                <option value="WARNING">警告</option>
+                                <option value="INFO">信息</option>
                                 <option value="DEBUG">调试</option>
                             </select>
                         </div>
-                        <div class="col-md-5">
-                            <button id="refreshLogs" class="btn btn-sm btn-primary me-2">
-                                <i class="bi bi-arrow-clockwise"></i> 刷新日志
-                            </button>
-                            <button id="extractQRCode" class="btn btn-sm btn-success">
-                                <i class="bi bi-qr-code"></i> 提取二维码
-                            </button>
+                        <div class="col-md-3">
+                            <select class="form-select" id="logLimit">
+                                <option value="20">最近20条</option>
+                                <option value="50">最近50条</option>
+                                <option value="100">最近100条</option>
+                                <option value="200">最近200条</option>
+                            </select>
                         </div>
                     </div>
                 </div>
-                <div id="logsList" class="border p-2 bg-light" style="height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9em;"></div>
-                <div class="mt-2 d-flex justify-content-between align-items-center">
-                    <div class="text-muted">
-                        <small>日志自动更新时间: <span id="lastUpdated"></span></small>
-                    </div>
+                
+                <div class="logs-container" id="logsList">
+                    <div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">加载日志中...</p></div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mt-3">
                     <div>
-                        <label for="logLimit" class="form-label mb-0 me-2">显示行数:</label>
-                        <select id="logLimit" class="form-select form-select-sm d-inline-block" style="width: 80px;">
-                            <option value="10">10</option>
-                            <option value="20" selected>20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="refreshLogsBtn">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新日志
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success ms-2" id="extractQRCodeBtn">
+                            <i class="bi bi-qr-code"></i> 提取二维码
+                        </button>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefreshLogs" checked>
+                        <label class="form-check-label" for="autoRefreshLogs">自动刷新</label>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>
@@ -112,33 +116,45 @@
         }
     }
     
-    /* 日志样式 */
-    .log-line {
-        padding: 2px 5px;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-        white-space: pre-wrap;
-        word-break: break-word;
-        line-height: 1.4;
-    }
-    .log-line:hover {
-        background-color: rgba(0,0,0,0.03);
-    }
-    .log-qrcode {
-        font-weight: bold;
-        background-color: rgba(25,135,84,0.1);
-        padding: 4px 5px;
-    }
-    #logsList {
-        font-size: 0.85rem;
-        background-color: #f8f9fa;
+    /* 日志相关样式 */
+    .logs-container {
+        height: 400px;
+        overflow-y: auto;
+        background-color: #1e1e1e;
+        color: #f8f8f8;
+        font-family: 'Courier New', monospace;
+        padding: 10px;
         border-radius: 4px;
     }
-    #lastUpdated {
+
+    .log-line {
+        padding: 2px 5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .log-qrcode {
+        background-color: rgba(0, 128, 255, 0.2);
         font-weight: bold;
     }
-    .spinner-border {
-        width: 1.5rem;
-        height: 1.5rem;
+
+    .log-error {
+        color: #ff6b6b;
+    }
+
+    .log-warning {
+        color: #ffd166;
+    }
+
+    .log-info {
+        color: #4ecdc4;
+    }
+
+    .log-debug {
+        color: #a0a0a0;
     }
 </style>
 {% endblock %}
@@ -183,24 +199,27 @@
         if (logsModal) {
             logsModal.addEventListener('shown.bs.modal', function() {
                 loadLogs();
-                // 设置自动刷新间隔
-                startLogAutoRefresh();
+                // 检查自动刷新设置
+                const autoRefreshSwitch = document.getElementById('autoRefreshLogs');
+                if (autoRefreshSwitch && autoRefreshSwitch.checked) {
+                    startAutoRefreshLogs();
+                }
             });
             
             logsModal.addEventListener('hidden.bs.modal', function() {
                 // 停止自动刷新
-                stopLogAutoRefresh();
+                stopAutoRefreshLogs();
             });
         }
         
         // 刷新日志按钮
-        const refreshLogsBtn = document.getElementById('refreshLogs');
+        const refreshLogsBtn = document.getElementById('refreshLogsBtn');
         if (refreshLogsBtn) {
             refreshLogsBtn.addEventListener('click', loadLogs);
         }
         
         // 提取二维码按钮
-        const extractQRCodeBtn = document.getElementById('extractQRCode');
+        const extractQRCodeBtn = document.getElementById('extractQRCodeBtn');
         if (extractQRCodeBtn) {
             extractQRCodeBtn.addEventListener('click', extractQRCodeFromLogs);
         }
@@ -238,42 +257,63 @@
         };
     }
 
-    let logRefreshInterval = null;
+    let logsRefreshInterval = null;
 
-    // 开始日志自动刷新
-    function startLogAutoRefresh() {
-        // 每30秒自动刷新一次
-        logRefreshInterval = setInterval(loadLogs, 30000);
+    // 启动自动刷新日志
+    function startAutoRefreshLogs() {
+        // 防止多个定时器
+        stopAutoRefreshLogs();
+        
+        // 每30秒刷新一次
+        logsRefreshInterval = setInterval(loadLogs, 30000);
+        console.log("启动日志自动刷新");
     }
 
-    // 停止日志自动刷新
-    function stopLogAutoRefresh() {
-        if (logRefreshInterval) {
-            clearInterval(logRefreshInterval);
-            logRefreshInterval = null;
+    // 停止自动刷新日志
+    function stopAutoRefreshLogs() {
+        if (logsRefreshInterval) {
+            clearInterval(logsRefreshInterval);
+            logsRefreshInterval = null;
+            console.log("停止日志自动刷新");
         }
+    }
+
+    // 绑定自动刷新切换事件
+    const autoRefreshSwitch = document.getElementById('autoRefreshLogs');
+    if (autoRefreshSwitch) {
+        autoRefreshSwitch.addEventListener('change', function() {
+            if (this.checked) {
+                startAutoRefreshLogs();
+            } else {
+                stopAutoRefreshLogs();
+            }
+        });
     }
 
     // 加载日志
     function loadLogs() {
         const logsList = document.getElementById('logsList');
+        const logSearch = document.getElementById('logSearch');
+        const logLevel = document.getElementById('logLevel');
+        const logLimit = document.getElementById('logLimit');
+        
         if (!logsList) return;
         
-        // 显示加载状态
-        logsList.innerHTML = '<div class="text-center my-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">加载日志中...</p></div>';
-        
-        // 获取搜索、筛选和限制参数
-        const searchQuery = document.getElementById('logSearch')?.value || '';
-        const logLevel = document.getElementById('logLevel')?.value || '';
-        const limit = document.getElementById('logLimit')?.value || '20';
+        // 显示加载指示器
+        logsList.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">加载中...</span></div></div>';
         
         // 构建查询参数
         const params = new URLSearchParams();
-        params.append('limit', limit);
-        if (searchQuery) params.append('search', searchQuery);
-        if (logLevel) params.append('level', logLevel);
+        if (logSearch && logSearch.value.trim()) {
+            params.append('search', logSearch.value.trim());
+        }
+        if (logLevel && logLevel.value) {
+            params.append('level', logLevel.value);
+        }
+        if (logLimit && logLimit.value) {
+            params.append('limit', logLimit.value);
+        }
         
-        // 发送请求获取日志
         fetch(`/api/logs?${params.toString()}`)
             .then(response => {
                 if (!response.ok) {
@@ -282,54 +322,73 @@
                 return response.json();
             })
             .then(data => {
-                // 更新最后更新时间
-                const lastUpdated = document.getElementById('lastUpdated');
-                if (lastUpdated) {
-                    const now = new Date();
-                    lastUpdated.textContent = now.toLocaleTimeString();
-                }
-                
-                // 检查是否有日志
                 if (!data.logs || data.logs.length === 0) {
-                    logsList.innerHTML = '<div class="alert alert-info">没有找到日志记录</div>';
+                    logsList.innerHTML = '<div class="text-center text-muted">没有找到日志</div>';
                     return;
                 }
                 
-                // 显示日志
                 logsList.innerHTML = '';
-                data.logs.forEach(log => {
-                    const logLine = document.createElement('div');
-                    logLine.className = 'log-line';
+                
+                // 反转数组以显示最新的日志在底部
+                const logs = [...data.logs].reverse();
+                
+                logs.forEach(log => {
+                    // 处理不同格式的日志
+                    let logText, logTime, logLevel, logContent;
+                    let cssClass = '';
+                    
+                    if (typeof log === 'string') {
+                        logText = log;
+                        
+                        // 尝试匹配日志级别
+                        if (logText.includes('ERROR') || logText.toLowerCase().includes('error')) {
+                            cssClass = 'log-error';
+                        } else if (logText.includes('WARNING') || logText.toLowerCase().includes('warning')) {
+                            cssClass = 'log-warning';
+                        } else if (logText.includes('INFO') || logText.toLowerCase().includes('info')) {
+                            cssClass = 'log-info';
+                        } else if (logText.includes('DEBUG') || logText.toLowerCase().includes('debug')) {
+                            cssClass = 'log-debug';
+                        }
+                    } else if (typeof log === 'object' && log !== null) {
+                        logTime = log.time || '';
+                        logLevel = log.level || '';
+                        logContent = log.content || '';
+                        
+                        // 格式化为单行字符串
+                        logText = `${logTime} | ${logLevel} | ${logContent}`;
+                        
+                        // 根据日志级别设置CSS类
+                        if (logLevel.includes('ERROR') || logLevel.toLowerCase() === 'error') {
+                            cssClass = 'log-error';
+                        } else if (logLevel.includes('WARNING') || logLevel.toLowerCase() === 'warning') {
+                            cssClass = 'log-warning';
+                        } else if (logLevel.includes('INFO') || logLevel.toLowerCase() === 'info') {
+                            cssClass = 'log-info';
+                        } else if (logLevel.includes('DEBUG') || logLevel.toLowerCase() === 'debug') {
+                            cssClass = 'log-debug';
+                        }
+                    } else {
+                        logText = String(log);
+                    }
                     
                     // 检查是否包含二维码链接
-                    const hasQrCode = log.includes("https://login.weixin.qq.com/") || 
-                                      log.includes("https://open.weixin.qq.com/");
-                    
-                    if (hasQrCode) {
-                        logLine.className += ' log-qrcode';
+                    if (logText.match(/(https:\/\/login\.weixin\.qq\.com\/[^\s]+)|(https:\/\/open\.weixin\.qq\.com\/[^\s]+)|(http:\/\/weixin\.qq\.com\/x\/[^\s]+)/)) {
+                        cssClass += ' log-qrcode';
                     }
                     
-                    // 应用颜色样式
-                    if (log.includes('[ERROR]') || log.includes('错误')) {
-                        logLine.className += ' text-danger';
-                    } else if (log.includes('[WARNING]') || log.includes('警告')) {
-                        logLine.className += ' text-warning';
-                    } else if (log.includes('[INFO]') || log.includes('信息')) {
-                        logLine.className += ' text-primary';
-                    } else if (log.includes('[DEBUG]') || log.includes('调试')) {
-                        logLine.className += ' text-muted';
-                    }
-                    
-                    logLine.textContent = log;
-                    logsList.appendChild(logLine);
+                    const logElement = document.createElement('div');
+                    logElement.className = `log-line ${cssClass}`;
+                    logElement.textContent = logText;
+                    logsList.appendChild(logElement);
                 });
                 
                 // 滚动到底部
                 logsList.scrollTop = logsList.scrollHeight;
             })
             .catch(error => {
-                console.error('获取日志错误:', error);
-                logsList.innerHTML = `<div class="alert alert-danger">加载日志失败: ${error.message}</div>`;
+                console.error('加载日志错误:', error);
+                logsList.innerHTML = `<div class="text-center text-danger">加载日志失败: ${error.message}</div>`;
             });
     }
 
@@ -351,8 +410,8 @@
         // 使用第一个找到的二维码（最近的）
         const qrCodeLine = qrCodeLines[qrCodeLines.length - 1].textContent;
         
-        // 提取链接
-        const qrCodeUrlMatch = qrCodeLine.match(/(https:\/\/login\.weixin\.qq\.com\/[^\s]+)|(https:\/\/open\.weixin\.qq\.com\/[^\s]+)/);
+        // 提取链接 - 支持多种格式
+        const qrCodeUrlMatch = qrCodeLine.match(/(https:\/\/login\.weixin\.qq\.com\/[^\s]+)|(https:\/\/open\.weixin\.qq\.com\/[^\s]+)|(http:\/\/weixin\.qq\.com\/x\/[^\s]+)/);
         
         if (qrCodeUrlMatch && qrCodeUrlMatch[0]) {
             const qrCodeUrl = qrCodeUrlMatch[0];
@@ -398,7 +457,20 @@
                 let qrCodeUrl = null;
                 for (let i = data.logs.length - 1; i >= 0; i--) {
                     const log = data.logs[i];
-                    const qrCodeUrlMatch = log.match(/(https:\/\/login\.weixin\.qq\.com\/[^\s]+)|(https:\/\/open\.weixin\.qq\.com\/[^\s]+)/);
+                    
+                    // 处理不同格式的日志
+                    let logText;
+                    if (typeof log === 'string') {
+                        logText = log;
+                    } else if (typeof log === 'object' && log !== null) {
+                        logText = log.content || '';
+                    } else {
+                        logText = String(log);
+                    }
+                    
+                    // 尝试匹配多种URL格式
+                    const qrCodeUrlMatch = logText.match(/(https:\/\/login\.weixin\.qq\.com\/[^\s]+)|(https:\/\/open\.weixin\.qq\.com\/[^\s]+)|(http:\/\/weixin\.qq\.com\/x\/[^\s]+)/);
+                    
                     if (qrCodeUrlMatch && qrCodeUrlMatch[0]) {
                         qrCodeUrl = qrCodeUrlMatch[0];
                         break;
