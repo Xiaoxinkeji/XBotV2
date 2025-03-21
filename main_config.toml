@@ -43,38 +43,3 @@ blacklist = [# 黑名单列表
     "333@chatroom", # 群聊ID
     "444@chatroom"
 ]
-
-# 主配置文件
-
-[bot]
-name = "XYBot"
-version = "1.0.0"
-debug = false
-log_level = "info"
-
-[web]
-# Web服务器设置
-host = "127.0.0.1"  # 设置为0.0.0.0可从任何IP访问
-port = 8080
-debug = false
-log_level = "info"
-
-# 管理员账号设置
-admin_username = "admin"  # 管理员用户名
-admin_password = "admin123"  # 管理员密码（首次启动时会自动加密存储）
-enable_password_login = true  # 是否启用密码登录
-enable_ip_whitelist = false  # 是否启用IP白名单
-
-# 会话设置
-session_expiry_hours = 2  # 普通会话过期时间（小时）
-remember_me_days = 7  # "记住我"会话过期时间（天）
-
-# 安全设置
-cors_origins = ["*"]  # 允许的跨域来源，生产环境应设置为具体域名
-trusted_hosts = ["localhost", "127.0.0.1"]  # 信任的主机名
-
-[web_ui]
-enabled = true
-port = 8080
-host = "0.0.0.0"
-debug = false

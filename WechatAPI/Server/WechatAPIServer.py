@@ -3,26 +3,12 @@ import pathlib
 import subprocess
 import threading
 
-# 尝试导入，但添加异常处理
-try:
-    import xywechatpad_binary
-    HAS_WECHATPAD = True
-except ImportError:
-    HAS_WECHATPAD = False
-    print("警告: xywechatpad-binary 模块未安装，微信服务器功能将不可用")
-
+import xywechatpad_binary
 from loguru import logger
 
 
 class WechatAPIServer:
     def __init__(self):
-        # 检查依赖是否存在
-        if not HAS_WECHATPAD:
-            logger.warning("xywechatpad-binary 未安装，微信API服务器将无法启动")
-            self.available = False
-            return
-            
-        self.available = True
         self.executable_path = xywechatpad_binary.copy_binary(pathlib.Path(__file__).parent.parent / "core")
         self.executable_path = self.executable_path.absolute()
 
@@ -48,10 +34,6 @@ class WechatAPIServer:
         :param redis_db:
         :return:
         """
-
-        if not self.available:
-            logger.error("无法启动微信API服务器: xywechatpad-binary 依赖缺失")
-            return False
 
         arguments = ["-p", str(port), "-m", mode, "-rh", redis_host, "-rp", str(redis_port), "-rpwd", redis_password,
                      "-rdb", str(redis_db)]

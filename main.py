@@ -5,10 +5,6 @@ import time
 import tomllib
 import traceback
 from pathlib import Path
-import threading
-import uvicorn
-import requests
-from urllib3.exceptions import NewConnectionError
 
 from loguru import logger
 from watchdog.events import FileSystemEventHandler
@@ -58,40 +54,6 @@ async def main():
     # 检查是否启用自动重启
     auto_restart = config.get("XYBot", {}).get("auto-restart", False)
 
-    # 启动Web服务器 - 移到这里，在机器人服务之前启动
-    def start_web_server():
-        try:
-            logger.info("正在启动Web管理界面...")
-            uvicorn.run(
-                "web_ui.app:app", 
-                host="0.0.0.0", 
-                port=8080,
-                log_level="info"
-            )
-        except Exception as e:
-            logger.error(f"Web服务启动失败: {str(e)}")
-    
-    # 在单独的线程中启动Web服务
-    web_thread = threading.Thread(target=start_web_server, daemon=True)
-    web_thread.start()
-    logger.success("Web管理界面已在 http://localhost:8080 启动")
-    
-    # 检查Web服务是否启动
-    def check_web_service():
-        try:
-            response = requests.get("http://localhost:8080/health", timeout=1)
-            return response.status_code == 200
-        except (requests.RequestException, NewConnectionError):
-            return False
-    
-    # 等待Web服务启动
-    for _ in range(5):  # 尝试5次
-        if check_web_service():
-            logger.success("Web服务健康检查通过")
-            break
-        await asyncio.sleep(1)
-    
-    # 现在启动机器人核心服务
     if auto_restart:
         # 设置监控
         observer = Observer()
