@@ -33,6 +33,15 @@ debug = false                        # 是否开启调试模式
 username = "admin"                   # 管理员用户名
 password = "admin123"                # 管理员密码，请修改为强密码
 
+# 状态通知设置
+[Notification]
+enable = true                        # 是否启用状态通知
+pushplus_token = ""                  # PushPlus的token，从pushplus.plus网站获取
+notify_online = true                 # 是否在机器人上线时通知
+notify_offline = true                # 是否在机器人掉线时通知
+online_title = "机器人已上线"         # 上线通知标题
+offline_title = "机器人已掉线"        # 掉线通知标题
+
 # 消息过滤设置
 ignore-mode = "None"            # 消息处理模式：
 # "None" - 处理所有消息

@@ -31,6 +31,10 @@ import traceback
 import glob
 from database.plugin_repository import get_plugin_repository, init_plugin_repository
 from starlette.status import HTTP_307_TEMPORARY_REDIRECT
+import sqlite3
+import random
+import requests
+import socket
 
 # 确保能导入主项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -111,6 +115,137 @@ _logs_cache = {
     "cache_timeout": 5  # 缓存超时时间(秒)
 }
 
+# ===== 状态通知相关函数 =====
+
+# 记录上一次机器人状态，用于检测状态变化
+last_robot_status = {"online": False, "last_check_time": datetime.now().timestamp()}
+
+def send_pushplus_notification(title, content, template="html"):
+    """
+    通过PushPlus发送通知
+    
+    Args:
+        title: 通知标题
+        content: 通知内容
+        template: 消息模板类型，默认html
+    
+    Returns:
+        bool: 是否发送成功
+    """
+    try:
+        # 获取PushPlus配置
+        notify_config = config.get("Notification", {})
+        if not notify_config.get("enable", False):
+            logger.debug("状态通知功能未启用")
+            return False
+            
+        pushplus_token = notify_config.get("pushplus_token", "")
+        if not pushplus_token:
+            logger.warning("未配置PushPlus token，无法发送通知")
+            return False
+        
+        # 构建请求
+        url = "http://www.pushplus.plus/send"
+        data = {
+            "token": pushplus_token,
+            "title": title,
+            "content": content,
+            "template": template
+        }
+        
+        # 发送通知
+        logger.info(f"正在发送PushPlus通知: {title}")
+        response = requests.post(url, json=data, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("code") == 200:
+                logger.info(f"PushPlus通知发送成功，消息ID: {result.get('data', '')}")
+                return True
+            else:
+                logger.warning(f"PushPlus通知发送失败: {result.get('msg', '未知错误')}")
+                return False
+        else:
+            logger.warning(f"PushPlus通知请求失败，状态码: {response.status_code}")
+            return False
+    
+    except Exception as e:
+        logger.error(f"发送PushPlus通知时出错: {e}")
+        return False
+
+def check_robot_status_change(robot_status):
+    """
+    检查机器人状态是否发生变化，如果变化则发送通知
+    
+    Args:
+        robot_status: 当前机器人状态
+    """
+    global last_robot_status
+    
+    try:
+        notify_config = config.get("Notification", {})
+        if not notify_config.get("enable", False):
+            return
+        
+        current_online = robot_status.get("online", False)
+        last_online = last_robot_status.get("online", False)
+        current_time = datetime.now().timestamp()
+        last_check_time = last_robot_status.get("last_check_time", 0)
+        
+        # 检查状态是否变化
+        status_changed = current_online != last_online
+        
+        # 状态变化后发送通知
+        if status_changed:
+            # 获取系统信息
+            hostname = socket.gethostname()
+            system_info = f"{platform.system()} {platform.version()}"
+            ip_address = socket.gethostbyname(socket.gethostname())
+            
+            # 构建消息内容
+            if current_online:
+                # 上线通知
+                if notify_config.get("notify_online", True):
+                    title = notify_config.get("online_title", "机器人已上线")
+                    content = f"""
+                    <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
+                        <h3 style="color: #28a745;">✅ 机器人已上线</h3>
+                        <p><strong>服务器:</strong> {hostname} ({ip_address})</p>
+                        <p><strong>系统:</strong> {system_info}</p>
+                        <p><strong>微信账号:</strong> {robot_status.get("nickname", "")} ({robot_status.get("wxid", "")})</p>
+                        <p><strong>上线时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                        <p><strong>活跃插件:</strong> {robot_status.get("plugin_count", 0)}个</p>
+                    </div>
+                    """
+                    send_pushplus_notification(title, content)
+            else:
+                # 掉线通知
+                if notify_config.get("notify_offline", True):
+                    title = notify_config.get("offline_title", "机器人已掉线")
+                    content = f"""
+                    <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
+                        <h3 style="color: #dc3545;">❌ 机器人已掉线</h3>
+                        <p><strong>服务器:</strong> {hostname} ({ip_address})</p>
+                        <p><strong>系统:</strong> {system_info}</p>
+                        <p><strong>微信账号:</strong> {last_robot_status.get("nickname", "")} ({last_robot_status.get("wxid", "")})</p>
+                        <p><strong>掉线时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                    </div>
+                    """
+                    send_pushplus_notification(title, content)
+        
+        # 更新状态记录
+        last_robot_status = {
+            "online": current_online,
+            "wxid": robot_status.get("wxid", ""),
+            "nickname": robot_status.get("nickname", ""),
+            "alias": robot_status.get("alias", ""),
+            "plugin_count": robot_status.get("plugin_count", 0),
+            "last_check_time": current_time
+        }
+    
+    except Exception as e:
+        logger.error(f"检查机器人状态变化时出错: {e}")
+
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
     if auth_enabled:
         correct_username = secrets.compare_digest(credentials.username, auth_username)
@@ -151,7 +286,7 @@ def is_robot_running():
 def get_robot_status():
     # 通过检查机器人进程和运行时状态确定在线状态
     robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
-    robot_online, _ = is_robot_running()
+    robot_online, pid = is_robot_running()
     wxid = ""
     nickname = ""
     alias = ""
@@ -205,15 +340,22 @@ def get_robot_status():
                 pass
     except Exception as e:
         logger.error(f"读取个人资料文件出错: {e}")
-            
-    return {
+    
+    # 构建状态数据        
+    status_data = {
         "online": robot_online,
         "wxid": wxid or "",
         "nickname": nickname or "XYBot",
         "alias": alias or "xybot",
         "plugin_count": plugin_count,
-        "message_count": message_count
+        "message_count": message_count,
+        "pid": pid
     }
+    
+    # 检查状态变化并发送通知
+    check_robot_status_change(status_data)
+    
+    return status_data
 
 # 获取所有插件列表
 def get_plugins():
@@ -557,82 +699,181 @@ async def update_plugin(plugin_id: str):
 # 控制机器人
 def control_robot(action: str):
     if action not in ["start", "stop", "restart"]:
+        logger.warning(f"收到不支持的机器人控制操作: {action}")
         return {"success": False, "message": f"不支持的操作: {action}"}
     
     try:
+        logger.info(f"执行机器人控制操作: {action}")
+        
         if action == "start":
             # 检查是否已经在运行
-            running, _ = is_robot_running()
+            running, pid = is_robot_running()
             if running:
-                return {"success": False, "message": "机器人已在运行"}
+                logger.warning("机器人已在运行，无需重复启动")
+                return {"success": False, "message": "机器人已在运行", "status": "running", "pid": pid}
+            
+            logger.info("正在启动机器人...")
+            
+            # 构建启动命令
+            cmd = []
+            if platform.system() == "Windows":
+                cmd = ["python", "main.py"]
+            else:
+                cmd = ["python3", "main.py"]
+            
+            # 添加环境变量，确保使用正确的Python和资源路径
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(PROJECT_ROOT)
             
             # 启动机器人
-            if platform.system() == "Windows":
-                subprocess.Popen(["python", "main.py"], cwd=str(PROJECT_ROOT))
-            else:
-                subprocess.Popen(["python3", "main.py"], cwd=str(PROJECT_ROOT))
-            
-            # 等待启动
-            time.sleep(2)
-            
-            # 检查是否成功启动
-            running, _ = is_robot_running()
-            if running:
-                return {"success": True, "message": "机器人已启动"}
-            else:
-                return {"success": False, "message": "启动机器人失败"}
+            try:
+                process = subprocess.Popen(
+                    cmd, 
+                    cwd=str(PROJECT_ROOT),
+                    env=env,
+                    stdout=subprocess.PIPE if platform.system() == "Windows" else subprocess.DEVNULL,
+                    stderr=subprocess.PIPE if platform.system() == "Windows" else subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+                )
+                
+                logger.info(f"机器人进程启动，PID: {process.pid}")
+                
+                # 等待启动
+                wait_time = 0
+                max_wait = 10  # 最多等待10秒
+                check_interval = 0.5  # 每0.5秒检查一次
+                
+                while wait_time < max_wait:
+                    time.sleep(check_interval)
+                    wait_time += check_interval
+                    
+                    # 检查进程是否仍在运行
+                    if process.poll() is not None:
+                        # 进程已退出
+                        stdout, stderr = process.communicate()
+                        logger.error(f"机器人进程启动失败, 退出码: {process.returncode}")
+                        logger.error(f"标准输出: {stdout.decode('utf-8', errors='ignore') if stdout else ''}")
+                        logger.error(f"标准错误: {stderr.decode('utf-8', errors='ignore') if stderr else ''}")
+                        return {"success": False, "message": f"启动机器人失败，进程异常退出，返回码: {process.returncode}"}
+                    
+                    # 检查是否已成功启动
+                    running, new_pid = is_robot_running()
+                    if running:
+                        logger.info(f"机器人已成功启动，PID: {new_pid}")
+                        
+                        # 获取状态并触发通知
+                        status = get_robot_status()
+                        
+                        return {"success": True, "message": "机器人已启动", "pid": new_pid}
+                
+                # 超过最大等待时间
+                logger.warning("机器人启动超时，但进程仍在运行。请检查日志确认是否正常运行。")
+                return {"success": True, "message": "机器人已启动，但尚未检测到就绪状态，请稍后再检查。", "pid": process.pid}
+                
+            except Exception as e:
+                logger.error(f"启动机器人时发生异常: {e}")
+                return {"success": False, "message": f"启动机器人失败: {str(e)}"}
                 
         elif action == "stop":
             # 检查是否在运行
             running, pid = is_robot_running()
             if not running:
+                logger.warning("机器人未在运行，无法停止")
                 return {"success": False, "message": "机器人未在运行"}
             
-            # 终止进程
-            process = psutil.Process(pid)
-            process.terminate()
+            # 先获取当前状态，用于之后的通知
+            current_status = get_robot_status()
             
-            # 等待进程终止
-            gone, still_alive = psutil.wait_procs([process], timeout=3)
-            if still_alive:
-                # 强制终止
-                for p in still_alive:
-                    p.kill()
+            logger.info(f"正在停止机器人进程 (PID: {pid})...")
             
-            return {"success": True, "message": "机器人已停止"}
-            
-        elif action == "restart":
-            # 先停止
-            running, pid = is_robot_running()
-            if running:
+            try:
+                # 获取进程对象
                 process = psutil.Process(pid)
+                
+                # 获取子进程
+                children = process.children(recursive=True)
+                
+                # 先正常终止主进程
                 process.terminate()
-                gone, still_alive = psutil.wait_procs([process], timeout=3)
+                
+                # 等待进程终止
+                gone, still_alive = psutil.wait_procs([process], timeout=5)
+                
                 if still_alive:
+                    # 如果进程未终止，强制终止
+                    logger.warning(f"进程 {pid} 未响应终止信号，正在强制终止...")
                     for p in still_alive:
                         p.kill()
+                
+                # 终止所有子进程
+                if children:
+                    logger.info(f"正在终止 {len(children)} 个子进程...")
+                    for child in children:
+                        try:
+                            child.terminate()
+                        except psutil.NoSuchProcess:
+                            pass
+                    
+                    # 等待子进程终止
+                    gone, still_alive = psutil.wait_procs(children, timeout=3)
+                    
+                    # 强制终止仍在运行的子进程
+                    if still_alive:
+                        for p in still_alive:
+                            try:
+                                p.kill()
+                            except psutil.NoSuchProcess:
+                                pass
+                
+                logger.info("机器人已成功停止")
+                
+                # 手动更新状态以触发通知
+                # 将之前获取的状态改为离线，然后调用检查函数
+                current_status["online"] = False
+                check_robot_status_change(current_status)
+                
+                return {"success": True, "message": "机器人已停止"}
+                
+            except psutil.NoSuchProcess:
+                logger.warning(f"进程 {pid} 不存在，可能已经终止")
+                return {"success": True, "message": "机器人已停止（进程不存在）"}
+                
+            except Exception as e:
+                logger.error(f"停止机器人时发生异常: {e}")
+                return {"success": False, "message": f"停止机器人失败: {str(e)}"}
+            
+        elif action == "restart":
+            logger.info("正在重启机器人...")
+            
+            # 先获取当前状态，用于之后的通知
+            current_status = get_robot_status().copy()
+            
+            # 先停止
+            stop_result = control_robot("stop")
+            if not stop_result["success"]:
+                logger.warning(f"停止机器人失败: {stop_result['message']}")
+                # 如果是因为机器人未运行而停止失败，则继续启动
+                if "未在运行" not in stop_result["message"]:
+                    return {"success": False, "message": f"重启失败: {stop_result['message']}"}
             
             # 等待完全停止
             time.sleep(2)
             
             # 启动
-            if platform.system() == "Windows":
-                subprocess.Popen(["python", "main.py"], cwd=str(PROJECT_ROOT))
-            else:
-                subprocess.Popen(["python3", "main.py"], cwd=str(PROJECT_ROOT))
+            start_result = control_robot("start")
             
-            # 等待启动
-            time.sleep(2)
-            
-            # 检查是否成功启动
-            running, _ = is_robot_running()
-            if running:
-                return {"success": True, "message": "机器人已重启"}
+            # 返回启动结果
+            if start_result["success"]:
+                logger.info("机器人已成功重启")
+                start_result["message"] = "机器人已重启"
             else:
-                return {"success": False, "message": "重启机器人失败"}
+                logger.error(f"重启机器人失败: {start_result['message']}")
+                start_result["message"] = f"重启机器人失败: {start_result['message']}"
+            
+            return start_result
     
     except Exception as e:
-        logger.error(f"控制机器人失败: {e}")
+        logger.error(f"控制机器人失败: {e}", exc_info=True)
         return {"success": False, "message": f"控制机器人失败: {str(e)}"}
 
 # 获取二维码URL
@@ -1009,38 +1250,30 @@ async def index(request: Request, username: str = Depends(get_current_username))
 
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
+    """获取系统状态API接口"""
     try:
         # 获取机器人状态
         robot_status = get_robot_status()
         
+        # 检查状态变化并发送通知
+        check_robot_status_change(robot_status)
+        
         # 获取系统信息
-        import psutil
-        import platform
-        from datetime import datetime
-        
-        # 获取进程信息
-        process = psutil.Process(os.getpid())
-        memory_info = process.memory_info()
-        
-        # 系统信息
         system_info = {
-            "version": robot_status.get("version", "v1.0.0"),
-            "uptime": int((datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds()),
-            "memory": memory_info.rss,
-            "cpu": round(process.cpu_percent(), 2),
-            "platform": platform.platform(),
-            "python_version": platform.python_version()
+            "cpu": psutil.cpu_percent(),
+            "memory": psutil.Process().memory_info().rss,
+            "memory_percent": psutil.virtual_memory().percent,
+            "uptime": int(time.time() - psutil.boot_time())
         }
         
         # 获取插件信息
         plugins = get_plugins()
-        enabled_plugins = [p for p in plugins if p.get('enabled', False)]
+        enabled_plugins = [p for p in plugins if p['enabled']]
         
         plugin_info = {
             "total": len(plugins),
             "enabled": len(enabled_plugins),
-            "disabled": len(plugins) - len(enabled_plugins),
-            "recent": enabled_plugins[:5]  # 获取5个最近的插件
+            "disabled": len(plugins) - len(enabled_plugins)
         }
         
         # 获取用户信息
@@ -1552,11 +1785,40 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
         
         # 更新配置
         for section, settings in config_data.items():
-            if section not in current_config:
-                current_config[section] = {}
+            if isinstance(settings, dict):
+                # 处理嵌套配置部分
+                if section not in current_config:
+                    current_config[section] = {}
+                
+                for key, value in settings.items():
+                    current_config[section][key] = value
+            else:
+                # 处理顶级配置项，如通知设置
+                current_config[section] = settings
+        
+        # 特殊处理通知设置 - 确保它们被放在正确的部分
+        notification_keys = [
+            'notification-enabled', 'pushplus-token', 
+            'notify-offline', 'notify-online'
+        ]
+        
+        # 如果配置中有通知相关设置，确保Notification部分存在
+        if any(key in config_data for key in notification_keys):
+            if 'Notification' not in current_config:
+                current_config['Notification'] = {}
             
-            for key, value in settings.items():
-                current_config[section][key] = value
+            # 将通知设置移动到Notification部分
+            if 'notification-enabled' in config_data:
+                current_config['Notification']['enable'] = config_data['notification-enabled']
+            
+            if 'pushplus-token' in config_data:
+                current_config['Notification']['pushplus_token'] = config_data['pushplus-token']
+            
+            if 'notify-offline' in config_data:
+                current_config['Notification']['notify_offline'] = config_data['notify-offline']
+            
+            if 'notify-online' in config_data:
+                current_config['Notification']['notify_online'] = config_data['notify-online']
         
         # 保存配置 - 使用toml库而不是tomllib
         with open(config_path, "w", encoding="utf-8") as f:
@@ -1949,6 +2211,20 @@ async def get_plugin_marketplace_page(request: Request, username: str = Depends(
             "admin_name": username
         }
     )
+
+@app.get("/api/settings")
+async def get_settings_api(username: str = Depends(get_current_username)):
+    """获取系统设置API接口"""
+    try:
+        # 读取现有配置
+        with open(config_path, "rb") as f:
+            system_config = tomllib.load(f)
+        
+        return {"success": True, "data": system_config}
+    except Exception as e:
+        logger.error(f"获取设置失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"获取设置失败: {str(e)}"}
 
 if __name__ == "__main__":
     start_web_server() 

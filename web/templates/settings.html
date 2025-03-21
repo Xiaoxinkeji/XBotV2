@@ -38,6 +38,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="filter-tab" data-bs-toggle="tab" data-bs-target="#filter" type="button" role="tab" aria-controls="filter" aria-selected="false">消息过滤</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="notification-tab" data-bs-toggle="tab" data-bs-target="#notification" type="button" role="tab" aria-controls="notification" aria-selected="false">状态通知</button>
+                        </li>
                     </ul>
                     
                     <div class="tab-content p-3 border border-top-0 rounded-bottom" id="configTabContent">
@@ -199,6 +202,46 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- 状态通知设置 -->
+                        <div class="tab-pane fade" id="notification" role="tabpanel" aria-labelledby="notification-tab">
+                            <h5 class="mb-3">状态通知设置</h5>
+                            <div class="alert alert-info" role="alert">
+                                <i class="bi bi-info-circle me-2"></i>设置机器人状态变化通知，当机器人掉线或上线时通过PushPlus发送通知
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="enableNotification" {% if config.get('notification-enabled', False) %}checked{% endif %}>
+                                <label class="form-check-label" for="enableNotification">启用状态通知</label>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="pushplusToken" class="form-label">PushPlus Token</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="pushplusToken" value="{{ config.get('pushplus-token', '') }}" placeholder="请输入PushPlus的Token">
+                                    <a href="https://www.pushplus.plus/" target="_blank" class="btn btn-outline-secondary" rel="noopener">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>获取Token
+                                    </a>
+                                </div>
+                                <div class="form-text">在PushPlus官网注册并获取Token，用于发送通知</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="notificationTypes" class="form-label">通知事件</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifyOffline" {% if config.get('notify-offline', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="notifyOffline">
+                                        机器人掉线通知
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notifyOnline" {% if config.get('notify-online', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="notifyOnline">
+                                        机器人上线通知
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -332,7 +375,11 @@
             },
             'ignore-mode': document.getElementById('ignoreMode').value,
             whitelist: [],
-            blacklist: []
+            blacklist: [],
+            'notification-enabled': document.getElementById('enableNotification').checked,
+            'pushplus-token': document.getElementById('pushplusToken').value,
+            'notify-offline': document.getElementById('notifyOffline').checked,
+            'notify-online': document.getElementById('notifyOnline').checked
         };
         
         // 收集管理员列表
