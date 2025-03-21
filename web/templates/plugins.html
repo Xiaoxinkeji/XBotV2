@@ -3,193 +3,517 @@
 {% block title %}插件管理 - XBotV2{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h4>插件管理</h4>
-        <button class="btn btn-sm btn-primary" id="refreshPlugins">刷新插件列表</button>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>插件名称</th>
-                        <th>插件ID</th>
-                        <th>描述</th>
-                        <th>状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for plugin in plugins %}
-                    <tr>
-                        <td>{{ plugin.name }}</td>
-                        <td>{{ plugin.id }}</td>
-                        <td>{{ plugin.description }}</td>
-                        <td>
-                            <span class="badge {% if plugin.enabled %}bg-success{% else %}bg-danger{% endif %}">
-                                {% if plugin.enabled %}已启用{% else %}已禁用{% endif %}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button 
-                                    class="btn btn-sm {% if plugin.enabled %}btn-danger{% else %}btn-success{% endif %} toggle-plugin" 
-                                    data-plugin-id="{{ plugin.id }}" 
-                                    data-plugin-enabled="{{ 'true' if plugin.enabled else 'false' }}">
-                                    {% if plugin.enabled %}禁用{% else %}启用{% endif %}
-                                </button>
-                                <button class="btn btn-sm btn-info plugin-config" data-plugin-id="{{ plugin.id }}">配置</button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">插件管理</h5>
+                <div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPluginModal">
+                        添加插件
+                    </button>
+                    <button id="refreshPlugins" class="btn btn-secondary">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="loadingPlugins" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载插件列表...</p>
+                </div>
+                
+                <div id="pluginsTable" class="table-responsive d-none">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>描述</th>
+                                <th>版本</th>
+                                <th>作者</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pluginsList">
+                            <!-- 插件列表将在这里动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="noPlugins" class="alert alert-info d-none">
+                    未找到任何插件。
+                </div>
+                
+                <div id="pluginsError" class="alert alert-danger d-none">
+                    加载插件列表失败。
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- 配置模态框 -->
-<div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- 添加插件模态框 -->
+<div class="modal fade" id="addPluginModal" tabindex="-1" aria-labelledby="addPluginModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">插件配置</h5>
+                <h5 class="modal-title" id="addPluginModalLabel">添加插件</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
-                <div id="configForm">
-                    <!-- 动态加载插件配置 -->
+                <div class="mb-3">
+                    <label for="pluginType" class="form-label">安装方式</label>
+                    <select class="form-select" id="pluginType">
+                        <option value="git">Git仓库</option>
+                        <option value="local">本地文件</option>
+                        <option value="zip">ZIP文件链接</option>
+                    </select>
                 </div>
+                
+                <div id="gitForm">
+                    <div class="mb-3">
+                        <label for="gitUrl" class="form-label">Git仓库URL</label>
+                        <input type="text" class="form-control" id="gitUrl" placeholder="https://github.com/username/plugin.git">
+                    </div>
+                    <div class="mb-3">
+                        <label for="gitBranch" class="form-label">分支/标签 (可选)</label>
+                        <input type="text" class="form-control" id="gitBranch" placeholder="main">
+                    </div>
+                </div>
+                
+                <div id="localForm" class="d-none">
+                    <div class="mb-3">
+                        <label for="localPath" class="form-label">本地路径</label>
+                        <input type="text" class="form-control" id="localPath" placeholder="/path/to/plugin">
+                        <div class="form-text">相对于机器人根目录的路径或绝对路径</div>
+                    </div>
+                </div>
+                
+                <div id="zipForm" class="d-none">
+                    <div class="mb-3">
+                        <label for="zipUrl" class="form-label">ZIP文件URL</label>
+                        <input type="text" class="form-control" id="zipUrl" placeholder="https://example.com/plugin.zip">
+                    </div>
+                </div>
+                
+                <div id="installResult" class="alert d-none mt-3"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-primary" id="saveConfig">保存配置</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="installPlugin">安装</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除插件确认模态框 -->
+<div class="modal fade" id="deletePluginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">删除插件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除插件 <strong id="deletePluginName"></strong> 吗？</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="deletePluginFiles">
+                    <label class="form-check-label" for="deletePluginFiles">
+                        同时删除插件文件
+                    </label>
+                </div>
+                <div id="deleteResult" class="alert d-none mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeletePlugin">删除</button>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet noopener" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% endblock %}
+
 {% block extra_js %}
 <script>
+    let plugins = [];
+    let deletePluginId = '';
+    
     document.addEventListener('DOMContentLoaded', function() {
-        // 刷新插件列表
-        document.getElementById('refreshPlugins').addEventListener('click', function() {
-            window.location.reload();
+        // 加载插件列表
+        loadPlugins();
+        
+        // 刷新按钮点击事件
+        document.getElementById('refreshPlugins').addEventListener('click', loadPlugins);
+        
+        // 插件类型选择事件
+        document.getElementById('pluginType').addEventListener('change', function() {
+            togglePluginForm(this.value);
         });
-
-        // 启用/禁用插件
-        document.querySelectorAll('.toggle-plugin').forEach(button => {
-            button.addEventListener('click', function() {
-                const pluginId = this.getAttribute('data-plugin-id');
-                const enabled = this.getAttribute('data-plugin-enabled') === 'true';
-                
-                // 发送请求切换状态
-                fetch(`/api/plugins/${pluginId}/toggle`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ enabled: !enabled })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        window.location.reload();
-                    } else {
-                        alert('操作失败: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('操作失败，请查看控制台日志');
-                });
-            });
-        });
-
-        // 插件配置
-        document.querySelectorAll('.plugin-config').forEach(button => {
-            button.addEventListener('click', function() {
-                const pluginId = this.getAttribute('data-plugin-id');
-                
-                // 获取插件配置
-                fetch(`/api/plugins/${pluginId}/config`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // 构建配置表单
-                        const configForm = document.getElementById('configForm');
-                        configForm.innerHTML = '';
-                        
-                        // 创建表单元素显示插件配置（这里只是简单示例）
-                        for (const key in data.config) {
-                            const formGroup = document.createElement('div');
-                            formGroup.className = 'mb-3';
-                            
-                            const label = document.createElement('label');
-                            label.className = 'form-label';
-                            label.textContent = key;
-                            
-                            const input = document.createElement('input');
-                            input.className = 'form-control';
-                            input.name = key;
-                            input.value = data.config[key];
-                            
-                            formGroup.appendChild(label);
-                            formGroup.appendChild(input);
-                            configForm.appendChild(formGroup);
-                        }
-                        
-                        // 保存按钮数据属性
-                        document.getElementById('saveConfig').setAttribute('data-plugin-id', pluginId);
-                        
-                        // 显示模态框
-                        new bootstrap.Modal(document.getElementById('configModal')).show();
-                    } else {
-                        alert('获取配置失败: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('获取配置失败，请查看控制台日志');
-                });
-            });
-        });
-
-        // 保存配置
-        document.getElementById('saveConfig').addEventListener('click', function() {
-            const pluginId = this.getAttribute('data-plugin-id');
-            const formData = {};
+        
+        // 安装插件按钮事件
+        document.getElementById('installPlugin').addEventListener('click', installPlugin);
+        
+        // 确认删除插件按钮事件
+        document.getElementById('confirmDeletePlugin').addEventListener('click', deletePlugin);
+        
+        // 监听删除模态框显示事件
+        const deleteModal = document.getElementById('deletePluginModal');
+        deleteModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
             
-            // 收集表单数据
-            document.querySelectorAll('#configForm input').forEach(input => {
-                formData[input.name] = input.value;
+            // 获取插件ID和名称
+            deletePluginId = button.dataset.pluginId;
+            const pluginName = button.dataset.pluginName;
+            
+            // 设置插件名称
+            document.getElementById('deletePluginName').textContent = pluginName;
+            
+            // 重置删除结果
+            document.getElementById('deleteResult').classList.add('d-none');
+            document.getElementById('deletePluginFiles').checked = false;
+        });
+        
+        // 监听添加模态框显示事件
+        const addModal = document.getElementById('addPluginModal');
+        addModal.addEventListener('show.bs.modal', function() {
+            // 重置表单
+            document.getElementById('gitUrl').value = '';
+            document.getElementById('gitBranch').value = '';
+            document.getElementById('localPath').value = '';
+            document.getElementById('zipUrl').value = '';
+            
+            // 重置插件类型
+            document.getElementById('pluginType').value = 'git';
+            togglePluginForm('git');
+            
+            // 重置安装结果
+            document.getElementById('installResult').classList.add('d-none');
+        });
+    });
+    
+    // 加载插件列表
+    async function loadPlugins() {
+        showLoading(true);
+        
+        try {
+            const response = await fetch('/api/plugins');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '加载插件列表失败');
+            }
+            
+            plugins = data.plugins;
+            
+            if (plugins.length === 0) {
+                document.getElementById('noPlugins').classList.remove('d-none');
+                document.getElementById('pluginsTable').classList.add('d-none');
+            } else {
+                document.getElementById('noPlugins').classList.add('d-none');
+                document.getElementById('pluginsTable').classList.remove('d-none');
+                
+                renderPluginsList(plugins);
+            }
+        } catch (error) {
+            console.error('加载插件错误:', error);
+            showError(error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    // 渲染插件列表
+    function renderPluginsList(plugins) {
+        const tbody = document.getElementById('pluginsList');
+        tbody.innerHTML = '';
+        
+        plugins.forEach(plugin => {
+            const tr = document.createElement('tr');
+            
+            // 名称
+            const tdName = document.createElement('td');
+            tdName.textContent = plugin.name;
+            if (plugin.readme) {
+                tdName.innerHTML = `<a href="#" data-bs-toggle="tooltip" title="查看详情">${plugin.name}</a>`;
+            }
+            
+            // 描述
+            const tdDesc = document.createElement('td');
+            tdDesc.textContent = plugin.description || '无描述';
+            
+            // 版本
+            const tdVersion = document.createElement('td');
+            tdVersion.textContent = plugin.version || '-';
+            
+            // 作者
+            const tdAuthor = document.createElement('td');
+            tdAuthor.textContent = plugin.author || '-';
+            
+            // 状态
+            const tdStatus = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `badge ${plugin.enabled ? 'bg-success' : 'bg-secondary'}`;
+            statusBadge.textContent = plugin.enabled ? '已启用' : '已禁用';
+            tdStatus.appendChild(statusBadge);
+            
+            // 操作
+            const tdActions = document.createElement('td');
+            
+            // 配置按钮
+            const configBtn = document.createElement('a');
+            configBtn.href = `/plugin_config?id=${plugin.id}`;
+            configBtn.className = 'btn btn-sm btn-primary me-1';
+            configBtn.innerHTML = '<i class="bi bi-gear"></i>';
+            configBtn.setAttribute('title', '配置');
+            configBtn.setAttribute('data-bs-toggle', 'tooltip');
+            
+            // 启用/禁用按钮
+            const toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = `btn btn-sm ${plugin.enabled ? 'btn-warning' : 'btn-success'} me-1`;
+            toggleBtn.innerHTML = plugin.enabled ? 
+                '<i class="bi bi-pause-fill"></i>' : 
+                '<i class="bi bi-play-fill"></i>';
+            toggleBtn.setAttribute('title', plugin.enabled ? '禁用' : '启用');
+            toggleBtn.setAttribute('data-bs-toggle', 'tooltip');
+            toggleBtn.addEventListener('click', () => togglePlugin(plugin.id, !plugin.enabled));
+            
+            // 删除按钮
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn btn-sm btn-danger';
+            deleteBtn.innerHTML = '<i class="bi bi-trash"></i>';
+            deleteBtn.setAttribute('title', '删除');
+            deleteBtn.setAttribute('data-bs-toggle', 'modal');
+            deleteBtn.setAttribute('data-bs-target', '#deletePluginModal');
+            deleteBtn.setAttribute('data-plugin-id', plugin.id);
+            deleteBtn.setAttribute('data-plugin-name', plugin.name);
+            
+            tdActions.appendChild(configBtn);
+            tdActions.appendChild(toggleBtn);
+            tdActions.appendChild(deleteBtn);
+            
+            tr.appendChild(tdName);
+            tr.appendChild(tdDesc);
+            tr.appendChild(tdVersion);
+            tr.appendChild(tdAuthor);
+            tr.appendChild(tdStatus);
+            tr.appendChild(tdActions);
+            
+            tbody.appendChild(tr);
+        });
+        
+        // 初始化工具提示
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+    
+    // 切换插件表单显示
+    function togglePluginForm(type) {
+        document.getElementById('gitForm').classList.add('d-none');
+        document.getElementById('localForm').classList.add('d-none');
+        document.getElementById('zipForm').classList.add('d-none');
+        
+        document.getElementById(`${type}Form`).classList.remove('d-none');
+    }
+    
+    // 安装插件
+    async function installPlugin() {
+        const type = document.getElementById('pluginType').value;
+        const formData = new FormData();
+        formData.append('install_type', type);
+        
+        let valid = true;
+        
+        switch (type) {
+            case 'git':
+                const gitUrl = document.getElementById('gitUrl').value.trim();
+                const gitBranch = document.getElementById('gitBranch').value.trim();
+                
+                if (!gitUrl) {
+                    alert('请输入Git仓库URL');
+                    valid = false;
+                    break;
+                }
+                
+                formData.append('git_url', gitUrl);
+                if (gitBranch) {
+                    formData.append('git_branch', gitBranch);
+                }
+                break;
+                
+            case 'local':
+                const localPath = document.getElementById('localPath').value.trim();
+                
+                if (!localPath) {
+                    alert('请输入本地路径');
+                    valid = false;
+                    break;
+                }
+                
+                formData.append('local_path', localPath);
+                break;
+                
+            case 'zip':
+                const zipUrl = document.getElementById('zipUrl').value.trim();
+                
+                if (!zipUrl) {
+                    alert('请输入ZIP文件URL');
+                    valid = false;
+                    break;
+                }
+                
+                formData.append('zip_url', zipUrl);
+                break;
+        }
+        
+        if (!valid) return;
+        
+        // 显示安装中
+        const resultEl = document.getElementById('installResult');
+        resultEl.className = 'alert alert-info';
+        resultEl.textContent = '正在安装插件，请稍候...';
+        resultEl.classList.remove('d-none');
+        
+        // 禁用安装按钮
+        const installBtn = document.getElementById('installPlugin');
+        installBtn.disabled = true;
+        
+        try {
+            const response = await fetch('/api/plugins/install', {
+                method: 'POST',
+                body: formData
             });
             
-            // 保存配置
-            fetch(`/api/plugins/${pluginId}/config`, {
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '安装插件失败');
+            }
+            
+            // 显示安装成功
+            resultEl.className = 'alert alert-success';
+            resultEl.textContent = `插件 ${data.plugin.name} 安装成功`;
+            
+            // 3秒后关闭模态框并刷新插件列表
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addPluginModal'));
+                modal.hide();
+                loadPlugins();
+            }, 3000);
+        } catch (error) {
+            console.error('安装插件错误:', error);
+            
+            // 显示安装失败
+            resultEl.className = 'alert alert-danger';
+            resultEl.textContent = `安装插件失败: ${error.message}`;
+        } finally {
+            // 启用安装按钮
+            installBtn.disabled = false;
+        }
+    }
+    
+    // 启用/禁用插件
+    async function togglePlugin(pluginId, enable) {
+        try {
+            const response = await fetch(`/api/plugins/${pluginId}/toggle`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(formData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
-                    alert('配置保存成功');
-                } else {
-                    alert('保存配置失败: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('保存配置失败，请查看控制台日志');
+                body: JSON.stringify({ enabled: enable })
             });
-        });
-    });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || `${enable ? '启用' : '禁用'}插件失败`);
+            }
+            
+            // 刷新插件列表
+            loadPlugins();
+        } catch (error) {
+            console.error('切换插件状态错误:', error);
+            alert(`${enable ? '启用' : '禁用'}插件失败: ${error.message}`);
+        }
+    }
+    
+    // 删除插件
+    async function deletePlugin() {
+        if (!deletePluginId) return;
+        
+        const deleteFiles = document.getElementById('deletePluginFiles').checked;
+        
+        // 显示删除中
+        const resultEl = document.getElementById('deleteResult');
+        resultEl.className = 'alert alert-info';
+        resultEl.textContent = '正在删除插件，请稍候...';
+        resultEl.classList.remove('d-none');
+        
+        // 禁用删除按钮
+        const deleteBtn = document.getElementById('confirmDeletePlugin');
+        deleteBtn.disabled = true;
+        
+        try {
+            const response = await fetch(`/api/plugins/${deletePluginId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ delete_files: deleteFiles })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '删除插件失败');
+            }
+            
+            // 显示删除成功
+            resultEl.className = 'alert alert-success';
+            resultEl.textContent = '插件删除成功';
+            
+            // 3秒后关闭模态框并刷新插件列表
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deletePluginModal'));
+                modal.hide();
+                loadPlugins();
+            }, 3000);
+        } catch (error) {
+            console.error('删除插件错误:', error);
+            
+            // 显示删除失败
+            resultEl.className = 'alert alert-danger';
+            resultEl.textContent = `删除插件失败: ${error.message}`;
+            
+            // 启用删除按钮
+            deleteBtn.disabled = false;
+        }
+    }
+    
+    // 显示加载中
+    function showLoading(show) {
+        document.getElementById('loadingPlugins').classList.toggle('d-none', !show);
+        document.getElementById('pluginsError').classList.add('d-none');
+    }
+    
+    // 显示错误
+    function showError(message) {
+        const errorEl = document.getElementById('pluginsError');
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+        
+        document.getElementById('pluginsTable').classList.add('d-none');
+        document.getElementById('noPlugins').classList.add('d-none');
+    }
 </script>
 {% endblock %} 

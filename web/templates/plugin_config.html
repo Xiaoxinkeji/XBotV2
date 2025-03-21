@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}插件配置 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>插件配置: <span id="pluginName"></span></h4>
+                <div>
+                    <button id="saveConfig" class="btn btn-primary">保存配置</button>
+                    <a href="/plugins" class="btn btn-secondary">返回</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="loadingConfig" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载配置...</p>
+                </div>
+                
+                <div id="configError" class="alert alert-danger d-none">
+                    加载配置失败
+                </div>
+                
+                <div id="configContainer" class="d-none">
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="pluginEnabled">
+                            <label class="form-check-label" for="pluginEnabled">启用插件</label>
+                        </div>
+                    </div>
+                    
+                    <div id="configForm">
+                        <!-- 配置项将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let pluginId = '';
+    let configData = {};
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // 从URL获取插件ID
+        const urlParams = new URLSearchParams(window.location.search);
+        pluginId = urlParams.get('id');
+        
+        if (!pluginId) {
+            showError('未指定插件ID');
+            return;
+        }
+        
+        // 加载插件配置
+        loadPluginConfig();
+        
+        // 保存按钮事件
+        document.getElementById('saveConfig').addEventListener('click', savePluginConfig);
+    });
+    
+    // 加载插件配置
+    async function loadPluginConfig() {
+        try {
+            const response = await fetch(`/api/plugins/${pluginId}/config`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '加载配置失败');
+            }
+            
+            configData = data;
+            
+            // 显示插件名称
+            document.getElementById('pluginName').textContent = data.name;
+            
+            // 设置启用状态
+            document.getElementById('pluginEnabled').checked = data.enabled;
+            
+            // 渲染配置表单
+            renderConfigForm(data.config);
+            
+            // 显示配置区域
+            document.getElementById('loadingConfig').classList.add('d-none');
+            document.getElementById('configContainer').classList.remove('d-none');
+        } catch (error) {
+            console.error('加载配置错误:', error);
+            showError(error.message);
+        }
+    }
+    
+    // 渲染配置表单
+    function renderConfigForm(config) {
+        const formContainer = document.getElementById('configForm');
+        formContainer.innerHTML = '';
+        
+        if (!config || Object.keys(config).length === 0) {
+            formContainer.innerHTML = '<div class="alert alert-info">此插件没有可配置项</div>';
+            return;
+        }
+        
+        // 创建表单
+        for (const key in config) {
+            if (config.hasOwnProperty(key)) {
+                const value = config[key];
+                const formGroup = document.createElement('div');
+                formGroup.className = 'mb-3';
+                
+                const label = document.createElement('label');
+                label.className = 'form-label';
+                label.textContent = key;
+                label.setAttribute('for', `config-${key}`);
+                
+                let input;
+                
+                // 根据值类型创建不同的输入控件
+                if (typeof value === 'boolean') {
+                    // 布尔值使用开关
+                    input = document.createElement('div');
+                    input.className = 'form-check form-switch';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.className = 'form-check-input';
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `config-${key}`;
+                    checkbox.checked = value;
+                    checkbox.dataset.key = key;
+                    checkbox.dataset.type = 'boolean';
+                    
+                    const checkboxLabel = document.createElement('label');
+                    checkboxLabel.className = 'form-check-label';
+                    checkboxLabel.setAttribute('for', `config-${key}`);
+                    checkboxLabel.textContent = value ? '是' : '否';
+                    
+                    input.appendChild(checkbox);
+                    input.appendChild(checkboxLabel);
+                } else if (typeof value === 'number') {
+                    // 数字使用数字输入框
+                    input = document.createElement('input');
+                    input.className = 'form-control';
+                    input.type = 'number';
+                    input.id = `config-${key}`;
+                    input.value = value;
+                    input.dataset.key = key;
+                    input.dataset.type = 'number';
+                } else if (Array.isArray(value)) {
+                    // 数组使用文本域，每行一个值
+                    input = document.createElement('textarea');
+                    input.className = 'form-control';
+                    input.id = `config-${key}`;
+                    input.value = value.join('\n');
+                    input.rows = Math.min(value.length + 1, 5);
+                    input.dataset.key = key;
+                    input.dataset.type = 'array';
+                } else if (typeof value === 'object' && value !== null) {
+                    // 对象使用JSON文本域
+                    input = document.createElement('textarea');
+                    input.className = 'form-control';
+                    input.id = `config-${key}`;
+                    input.value = JSON.stringify(value, null, 2);
+                    input.rows = 5;
+                    input.dataset.key = key;
+                    input.dataset.type = 'object';
+                } else {
+                    // 字符串使用文本输入框
+                    input = document.createElement('input');
+                    input.className = 'form-control';
+                    input.type = 'text';
+                    input.id = `config-${key}`;
+                    input.value = value;
+                    input.dataset.key = key;
+                    input.dataset.type = 'string';
+                }
+                
+                formGroup.appendChild(label);
+                formGroup.appendChild(input);
+                formContainer.appendChild(formGroup);
+            }
+        }
+    }
+    
+    // 保存插件配置
+    async function savePluginConfig() {
+        try {
+            // 收集表单数据
+            const configInputs = document.querySelectorAll('#configForm [data-key]');
+            const newConfig = {};
+            
+            configInputs.forEach(input => {
+                const key = input.dataset.key;
+                const type = input.dataset.type;
+                let value;
+                
+                switch (type) {
+                    case 'boolean':
+                        value = input.checked;
+                        break;
+                    case 'number':
+                        value = parseFloat(input.value);
+                        break;
+                    case 'array':
+                        value = input.value.split('\n').map(item => item.trim()).filter(item => item !== '');
+                        break;
+                    case 'object':
+                        try {
+                            value = JSON.parse(input.value);
+                        } catch (e) {
+                            throw new Error(`${key} 的值不是有效的JSON: ${e.message}`);
+                        }
+                        break;
+                    default:
+                        value = input.value;
+                }
+                
+                newConfig[key] = value;
+            });
+            
+            // 构建请求数据
+            const requestData = {
+                enabled: document.getElementById('pluginEnabled').checked,
+                config: newConfig
+            };
+            
+            // 发送保存请求
+            const response = await fetch(`/api/plugins/${pluginId}/config`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '保存配置失败');
+            }
+            
+            // 显示保存成功
+            alert('配置已保存');
+            
+            // 重新加载配置
+            loadPluginConfig();
+        } catch (error) {
+            console.error('保存配置错误:', error);
+            alert('保存配置失败: ' + error.message);
+        }
+    }
+    
+    // 显示错误
+    function showError(message) {
+        const errorEl = document.getElementById('configError');
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+        
+        document.getElementById('loadingConfig').classList.add('d-none');
+    }
+</script>
+{% endblock %} 

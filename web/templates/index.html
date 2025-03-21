@@ -1,147 +1,747 @@
 {% extends "base.html" %}
 
-{% block title %}XBotV2 控制面板{% endblock %}
+{% block title %}首页 - XBotV2{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h4>机器人状态</h4>
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">系统状态</h5>
+                <button id="refreshStatus" class="btn btn-sm btn-secondary">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4 text-center">
-                        <div class="status-indicator {% if robot.online %}online{% else %}offline{% endif %}"></div>
-                        <h5 class="mt-2">{% if robot.online %}在线{% else %}离线{% endif %}</h5>
+                    <div class="col-md-6">
+                        <div class="status-card mb-4">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">机器人状态</h6>
+                                    <h2 id="robotStatus">
+                                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                                        加载中...
+                                    </h2>
+                                </div>
+                                <div class="status-icon">
+                                    <i id="robotStatusIcon" class="bi bi-question-circle text-secondary" style="font-size: 2.5rem;"></i>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button id="startRobot" class="btn btn-success btn-sm me-1" disabled>启动</button>
+                                <button id="stopRobot" class="btn btn-danger btn-sm me-1" disabled>停止</button>
+                                <button id="restartRobot" class="btn btn-warning btn-sm me-1" disabled>重启</button>
+                                <a href="/login" class="btn btn-primary btn-sm">登录微信</a>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6 class="mb-2">系统信息</h6>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <td width="40%">版本</td>
+                                        <td id="botVersion">加载中...</td>
+                                    </tr>
+                                    <tr>
+                                        <td>运行时间</td>
+                                        <td id="uptime">加载中...</td>
+                                    </tr>
+                                    <tr>
+                                        <td>内存使用</td>
+                                        <td id="memory">加载中...</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CPU使用</td>
+                                        <td id="cpu">加载中...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="col-md-8">
-                        <table class="table">
-                            <tr>
-                                <th>微信ID:</th>
-                                <td>{{ robot.wxid or '未登录' }}</td>
-                            </tr>
-                            <tr>
-                                <th>昵称:</th>
-                                <td>{{ robot.nickname or '未登录' }}</td>
-                            </tr>
-                            <tr>
-                                <th>微信号:</th>
-                                <td>{{ robot.alias or '未登录' }}</td>
-                            </tr>
-                        </table>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-4">
+                            <h6 class="mb-2">插件状态</h6>
+                            <div class="d-flex mb-3">
+                                <div class="me-4">
+                                    <h3 id="pluginCount">-</h3>
+                                    <small class="text-muted">已加载插件</small>
+                                </div>
+                                <div class="me-4">
+                                    <h3 id="pluginEnabled">-</h3>
+                                    <small class="text-muted">已启用</small>
+                                </div>
+                                <div>
+                                    <h3 id="pluginDisabled">-</h3>
+                                    <small class="text-muted">已禁用</small>
+                                </div>
+                            </div>
+                            <a href="/plugins" class="btn btn-sm btn-outline-primary">管理插件</a>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h6 class="mb-2">登录状态</h6>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <td width="40%">账号</td>
+                                        <td id="userWxid">未登录</td>
+                                    </tr>
+                                    <tr>
+                                        <td>昵称</td>
+                                        <td id="userNickname">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>登录时间</td>
+                                        <td id="loginTime">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    
+    <div class="col-lg-4">
         <div class="card mb-4">
             <div class="card-header">
-                <h4>统计信息</h4>
+                <h5 class="mb-0">快捷操作</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex justify-content-between mb-3">
-                    <div class="text-center">
-                        <h2>{{ robot.plugin_count }}</h2>
-                        <p>已加载插件</p>
-                    </div>
-                    <div class="text-center">
-                        <h2>{{ robot.message_count }}</h2>
-                        <p>消息总数</p>
+                <div class="d-grid gap-2">
+                    <a href="/plugins" class="btn btn-primary">
+                        <i class="bi bi-puzzle-fill me-2"></i> 插件管理
+                    </a>
+                    <a href="/login" class="btn btn-success">
+                        <i class="bi bi-box-arrow-in-right me-2"></i> 微信登录
+                    </a>
+                    <button id="showLogs" class="btn btn-info">
+                        <i class="bi bi-journal-text me-2"></i> 查看日志
+                    </button>
+                    <button id="showConfig" class="btn btn-warning">
+                        <i class="bi bi-gear-fill me-2"></i> 修改配置
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最近日志</h5>
+                <button id="refreshLogs" class="btn btn-sm btn-secondary">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="logContainer" class="log-container">
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">加载日志...</p>
                     </div>
                 </div>
-                <a href="/plugins" class="btn btn-primary w-100">插件管理</a>
+            </div>
+            <div class="card-footer">
+                <a href="#" id="showMoreLogs" class="btn btn-sm btn-outline-secondary w-100">查看更多</a>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h4>消息统计</h4>
+<!-- 日志模态框 -->
+<div class="modal fade" id="logModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">系统日志</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
-            <div class="card-body">
-                <canvas id="messageChart" height="250"></canvas>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm log-level active" data-level="all">全部</button>
+                            <button type="button" class="btn btn-outline-info btn-sm log-level" data-level="info">信息</button>
+                            <button type="button" class="btn btn-outline-warning btn-sm log-level" data-level="warning">警告</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm log-level" data-level="error">错误</button>
+                        </div>
+                        <button id="refreshFullLogs" class="btn btn-sm btn-secondary">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+                <div id="fullLogContainer" class="log-container-full">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">加载日志...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="downloadLogs">下载日志</button>
             </div>
         </div>
     </div>
 </div>
+
+<!-- 配置模态框 -->
+<div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">系统配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div id="configLoadingSpinner" class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">加载配置...</p>
+                </div>
+                <div id="configEditor" class="d-none">
+                    <div class="mb-3">
+                        <label for="configTextarea" class="form-label">配置内容 (TOML格式)</label>
+                        <textarea class="form-control font-monospace" id="configTextarea" rows="15"></textarea>
+                    </div>
+                </div>
+                <div id="configError" class="alert alert-danger d-none"></div>
+                <div id="configSuccess" class="alert alert-success d-none">配置已保存</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="saveConfig">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet noopener" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<style>
+    .status-card {
+        position: relative;
+    }
+    .status-icon {
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+    .log-container {
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        font-family: monospace;
+        height: 200px;
+        overflow-y: auto;
+        font-size: 0.875rem;
+    }
+    .log-container-full {
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        font-family: monospace;
+        height: 500px;
+        overflow-y: auto;
+        font-size: 0.875rem;
+    }
+    .log-entry {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .log-entry:last-child {
+        border-bottom: none;
+    }
+    .log-info {
+        color: #0d6efd;
+    }
+    .log-warning {
+        color: #fd7e14;
+    }
+    .log-error {
+        color: #dc3545;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // 消息统计图表
+    // 全局变量
+    let statusInterval = null;
+    let logRefreshInterval = null;
+    let isRobotRunning = false;
+    
     document.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('messageChart').getContext('2d');
-        const messageChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-                datasets: [{
-                    label: '每日消息数',
-                    data: [65, 59, 80, 81, 56, 55, 40],
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 2,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
+        // 初始化各种事件监听和功能
+        initStatusRefresh();
+        initLogView();
+        initControlButtons();
+        initConfigModal();
+        
+        // Tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+    
+    // 初始化状态刷新
+    function initStatusRefresh() {
+        // 立即获取一次状态
+        refreshStatus();
+        
+        // 设置定时刷新 (每30秒)
+        statusInterval = setInterval(refreshStatus, 30000);
+        
+        // 刷新按钮
+        document.getElementById('refreshStatus').addEventListener('click', refreshStatus);
+    }
+    
+    // 刷新状态
+    async function refreshStatus() {
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取状态失败');
+            }
+            
+            // 更新机器人状态
+            updateRobotStatus(data.robot);
+            
+            // 更新系统信息
+            updateSystemInfo(data.system);
+            
+            // 更新插件信息
+            updatePluginInfo(data.plugins);
+            
+            // 更新用户信息
+            updateUserInfo(data.user);
+        } catch (error) {
+            console.error('刷新状态错误:', error);
+            document.getElementById('robotStatus').innerHTML = '<span class="text-danger">获取状态失败</span>';
+        }
+    }
+    
+    // 更新机器人状态
+    function updateRobotStatus(robotData) {
+        const statusEl = document.getElementById('robotStatus');
+        const iconEl = document.getElementById('robotStatusIcon');
+        const startBtn = document.getElementById('startRobot');
+        const stopBtn = document.getElementById('stopRobot');
+        const restartBtn = document.getElementById('restartRobot');
+        
+        if (robotData.online) {
+            statusEl.innerHTML = '<span class="text-success">在线</span>';
+            iconEl.className = 'bi bi-check-circle-fill text-success';
+            isRobotRunning = true;
+            
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            restartBtn.disabled = false;
+        } else {
+            statusEl.innerHTML = '<span class="text-danger">离线</span>';
+            iconEl.className = 'bi bi-x-circle-fill text-danger';
+            isRobotRunning = false;
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            restartBtn.disabled = true;
+        }
+    }
+    
+    // 更新系统信息
+    function updateSystemInfo(systemData) {
+        document.getElementById('botVersion').textContent = systemData.version || '未知';
+        document.getElementById('uptime').textContent = formatUptime(systemData.uptime);
+        document.getElementById('memory').textContent = formatMemory(systemData.memory);
+        document.getElementById('cpu').textContent = systemData.cpu ? `${systemData.cpu}%` : '未知';
+    }
+    
+    // 更新插件信息
+    function updatePluginInfo(pluginData) {
+        document.getElementById('pluginCount').textContent = pluginData.total || 0;
+        document.getElementById('pluginEnabled').textContent = pluginData.enabled || 0;
+        document.getElementById('pluginDisabled').textContent = pluginData.disabled || 0;
+    }
+    
+    // 更新用户信息
+    function updateUserInfo(userData) {
+        if (userData && userData.wxid) {
+            document.getElementById('userWxid').textContent = userData.wxid;
+            document.getElementById('userNickname').textContent = userData.nickname || '-';
+            document.getElementById('loginTime').textContent = formatTime(userData.login_time);
+        } else {
+            document.getElementById('userWxid').textContent = '未登录';
+            document.getElementById('userNickname').textContent = '-';
+            document.getElementById('loginTime').textContent = '-';
+        }
+    }
+    
+    // 初始化日志查看
+    function initLogView() {
+        // 获取一次日志
+        refreshLogs();
+        
+        // 设置定时刷新 (每10秒)
+        logRefreshInterval = setInterval(refreshLogs, 10000);
+        
+        // 刷新按钮
+        document.getElementById('refreshLogs').addEventListener('click', refreshLogs);
+        
+        // 查看更多按钮
+        document.getElementById('showMoreLogs').addEventListener('click', function(e) {
+            e.preventDefault();
+            const logModal = new bootstrap.Modal(document.getElementById('logModal'));
+            refreshFullLogs();
+            logModal.show();
+        });
+        
+        // 查看日志按钮
+        document.getElementById('showLogs').addEventListener('click', function() {
+            const logModal = new bootstrap.Modal(document.getElementById('logModal'));
+            refreshFullLogs();
+            logModal.show();
+        });
+        
+        // 日志模态框中的刷新按钮
+        document.getElementById('refreshFullLogs').addEventListener('click', refreshFullLogs);
+        
+        // 日志级别过滤
+        document.querySelectorAll('.log-level').forEach(button => {
+            button.addEventListener('click', function() {
+                // 移除所有按钮的活动状态
+                document.querySelectorAll('.log-level').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // 添加当前按钮的活动状态
+                this.classList.add('active');
+                
+                // 过滤日志
+                filterLogs(this.getAttribute('data-level'));
+            });
+        });
+        
+        // 下载日志按钮
+        document.getElementById('downloadLogs').addEventListener('click', downloadLogs);
+    }
+    
+    // 刷新日志
+    async function refreshLogs() {
+        try {
+            const response = await fetch('/api/logs?limit=10');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取日志失败');
+            }
+            
+            // 更新日志容器
+            const logContainer = document.getElementById('logContainer');
+            logContainer.innerHTML = '';
+            
+            if (data.logs.length === 0) {
+                logContainer.innerHTML = '<div class="text-center py-3"><p>暂无日志</p></div>';
+                return;
+            }
+            
+            // 添加日志条目
+            data.logs.forEach(log => {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+                
+                // 格式化时间
+                const time = new Date(log.time);
+                const timeStr = time.toLocaleTimeString();
+                
+                // 日志内容
+                logEntry.innerHTML = `<div><small>${timeStr}</small> ${log.message}</div>`;
+                
+                logContainer.appendChild(logEntry);
+            });
+        } catch (error) {
+            console.error('刷新日志错误:', error);
+            const logContainer = document.getElementById('logContainer');
+            logContainer.innerHTML = '<div class="text-center py-3"><p class="text-danger">获取日志失败</p></div>';
+        }
+    }
+    
+    // 刷新完整日志
+    async function refreshFullLogs() {
+        try {
+            const fullLogContainer = document.getElementById('fullLogContainer');
+            fullLogContainer.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">加载日志...</p>
+                </div>
+            `;
+            
+            const response = await fetch('/api/logs?limit=100');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取日志失败');
+            }
+            
+            // 更新日志容器
+            fullLogContainer.innerHTML = '';
+            
+            if (data.logs.length === 0) {
+                fullLogContainer.innerHTML = '<div class="text-center py-3"><p>暂无日志</p></div>';
+                return;
+            }
+            
+            // 添加日志条目
+            data.logs.forEach(log => {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+                logEntry.setAttribute('data-level', log.level.toLowerCase());
+                
+                // 格式化时间
+                const time = new Date(log.time);
+                const timeStr = time.toLocaleString();
+                
+                // 日志内容
+                logEntry.innerHTML = `<div><small>${timeStr}</small> <strong>[${log.level}]</strong> ${log.message}</div>`;
+                
+                fullLogContainer.appendChild(logEntry);
+            });
+            
+            // 滚动到底部
+            fullLogContainer.scrollTop = fullLogContainer.scrollHeight;
+        } catch (error) {
+            console.error('刷新完整日志错误:', error);
+            const fullLogContainer = document.getElementById('fullLogContainer');
+            fullLogContainer.innerHTML = '<div class="text-center py-3"><p class="text-danger">获取日志失败</p></div>';
+        }
+    }
+    
+    // 过滤日志
+    function filterLogs(level) {
+        const logEntries = document.querySelectorAll('#fullLogContainer .log-entry');
+        
+        if (level === 'all') {
+            // 显示所有日志
+            logEntries.forEach(entry => {
+                entry.style.display = '';
+            });
+        } else {
+            // 只显示指定级别的日志
+            logEntries.forEach(entry => {
+                if (entry.getAttribute('data-level') === level) {
+                    entry.style.display = '';
+                } else {
+                    entry.style.display = 'none';
+                }
+            });
+        }
+    }
+    
+    // 下载日志
+    function downloadLogs() {
+        // 创建下载链接
+        const downloadLink = document.createElement('a');
+        downloadLink.href = '/api/logs/download';
+        downloadLink.download = `xbotv2_logs_${new Date().toISOString().slice(0, 10)}.txt`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+    
+    // 初始化控制按钮
+    function initControlButtons() {
+        // 启动机器人
+        document.getElementById('startRobot').addEventListener('click', async function() {
+            if (confirm('确定要启动机器人吗？')) {
+                try {
+                    const response = await fetch('/api/robot/start', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.message || '启动机器人失败');
                     }
+                    
+                    alert('已发送启动命令');
+                    setTimeout(refreshStatus, 2000);
+                } catch (error) {
+                    console.error('启动机器人错误:', error);
+                    alert('启动机器人失败: ' + error.message);
                 }
             }
         });
-
-        // 自动刷新状态
-        setInterval(function() {
-            fetch('/api/status')
-                .then(response => response.json())
-                .then(data => {
-                    // 更新状态显示
-                    const statusIndicator = document.querySelector('.status-indicator');
-                    const statusText = document.querySelector('.status-indicator + h5');
+        
+        // 停止机器人
+        document.getElementById('stopRobot').addEventListener('click', async function() {
+            if (confirm('确定要停止机器人吗？')) {
+                try {
+                    const response = await fetch('/api/robot/stop', { method: 'POST' });
+                    const data = await response.json();
                     
-                    if (data.online) {
-                        statusIndicator.classList.add('online');
-                        statusIndicator.classList.remove('offline');
-                        statusText.textContent = '在线';
-                    } else {
-                        statusIndicator.classList.add('offline');
-                        statusIndicator.classList.remove('online');
-                        statusText.textContent = '离线';
+                    if (!data.success) {
+                        throw new Error(data.message || '停止机器人失败');
                     }
                     
-                    // 更新其他数据
-                    // ...
-                });
-        }, 5000);
-    });
+                    alert('已发送停止命令');
+                    setTimeout(refreshStatus, 2000);
+                } catch (error) {
+                    console.error('停止机器人错误:', error);
+                    alert('停止机器人失败: ' + error.message);
+                }
+            }
+        });
+        
+        // 重启机器人
+        document.getElementById('restartRobot').addEventListener('click', async function() {
+            if (confirm('确定要重启机器人吗？')) {
+                try {
+                    const response = await fetch('/api/robot/restart', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.message || '重启机器人失败');
+                    }
+                    
+                    alert('已发送重启命令');
+                    setTimeout(refreshStatus, 5000);
+                } catch (error) {
+                    console.error('重启机器人错误:', error);
+                    alert('重启机器人失败: ' + error.message);
+                }
+            }
+        });
+    }
+    
+    // 初始化配置模态框
+    function initConfigModal() {
+        // 显示配置按钮
+        document.getElementById('showConfig').addEventListener('click', function() {
+            const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+            loadConfig();
+            configModal.show();
+        });
+        
+        // 保存配置按钮
+        document.getElementById('saveConfig').addEventListener('click', saveConfig);
+    }
+    
+    // 加载配置
+    async function loadConfig() {
+        // 显示加载中
+        document.getElementById('configLoadingSpinner').classList.remove('d-none');
+        document.getElementById('configEditor').classList.add('d-none');
+        document.getElementById('configError').classList.add('d-none');
+        document.getElementById('configSuccess').classList.add('d-none');
+        
+        try {
+            const response = await fetch('/api/config');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取配置失败');
+            }
+            
+            // 显示配置内容
+            document.getElementById('configTextarea').value = data.config;
+            
+            // 隐藏加载中，显示编辑器
+            document.getElementById('configLoadingSpinner').classList.add('d-none');
+            document.getElementById('configEditor').classList.remove('d-none');
+        } catch (error) {
+            console.error('加载配置错误:', error);
+            
+            // 显示错误
+            document.getElementById('configLoadingSpinner').classList.add('d-none');
+            const errorEl = document.getElementById('configError');
+            errorEl.textContent = `加载配置失败: ${error.message}`;
+            errorEl.classList.remove('d-none');
+        }
+    }
+    
+    // 保存配置
+    async function saveConfig() {
+        // 隐藏提示
+        document.getElementById('configError').classList.add('d-none');
+        document.getElementById('configSuccess').classList.add('d-none');
+        
+        // 获取配置内容
+        const config = document.getElementById('configTextarea').value;
+        
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ config })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '保存配置失败');
+            }
+            
+            // 显示成功
+            document.getElementById('configSuccess').classList.remove('d-none');
+            
+            // 5秒后刷新页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        } catch (error) {
+            console.error('保存配置错误:', error);
+            
+            // 显示错误
+            const errorEl = document.getElementById('configError');
+            errorEl.textContent = `保存配置失败: ${error.message}`;
+            errorEl.classList.remove('d-none');
+        }
+    }
+    
+    // 格式化运行时间
+    function formatUptime(seconds) {
+        if (!seconds && seconds !== 0) return '未知';
+        
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        
+        let result = '';
+        if (days > 0) result += `${days}天 `;
+        if (hours > 0 || days > 0) result += `${hours}小时 `;
+        result += `${minutes}分钟`;
+        
+        return result;
+    }
+    
+    // 格式化内存
+    function formatMemory(bytes) {
+        if (!bytes && bytes !== 0) return '未知';
+        
+        const mb = bytes / (1024 * 1024);
+        return `${mb.toFixed(2)} MB`;
+    }
+    
+    // 格式化时间
+    function formatTime(timestamp) {
+        if (!timestamp) return '-';
+        
+        const date = new Date(timestamp);
+        return date.toLocaleString();
+    }
 </script>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    .status-indicator {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        margin: 0 auto;
-        background-color: #e74c3c;
-    }
-    
-    .status-indicator.online {
-        background-color: #2ecc71;
-    }
-    
-    .status-indicator.offline {
-        background-color: #e74c3c;
-    }
-</style>
 {% endblock %} 

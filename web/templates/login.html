@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}微信登录 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>微信登录</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="login-methods mb-4">
+                            <h5 class="mb-3">选择登录方式</h5>
+                            <div class="d-grid gap-2">
+                                <button id="qrcodeLogin" class="btn btn-primary">扫码登录</button>
+                                <button id="awakenLogin" class="btn btn-success">唤醒登录</button>
+                            </div>
+                        </div>
+                        <div id="loginStatus" class="alert alert-info d-none">
+                            等待登录...
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <div id="qrcodeContainer" class="d-none">
+                            <h5 class="mb-3">请扫描二维码登录</h5>
+                            <div id="qrcode" class="mx-auto mb-3" style="width: 200px; height: 200px;"></div>
+                            <p id="qrcodeExpire" class="text-muted">二维码有效期: <span>300</span>秒</p>
+                        </div>
+                        <div id="loginResult" class="mt-4 d-none">
+                            <div class="login-success d-none">
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 48px;"></i>
+                                <h5 class="mt-2 mb-3">登录成功</h5>
+                                <p>账号: <span id="loginAccount"></span></p>
+                                <p>昵称: <span id="loginNickname"></span></p>
+                            </div>
+                            <div class="login-fail d-none">
+                                <i class="bi bi-x-circle-fill text-danger" style="font-size: 48px;"></i>
+                                <h5 class="mt-2 mb-3">登录失败</h5>
+                                <p id="loginError"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet noopener" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<style>
+    #qrcode img {
+        max-width: 100%;
+        height: auto;
+    }
+    .login-success, .login-fail {
+        padding: 20px;
+    }
+    .login-methods {
+        border-right: 1px solid #eee;
+    }
+    @media (max-width: 768px) {
+        .login-methods {
+            border-right: none;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script>
+    let loginUUID = '';
+    let deviceID = '';
+    let checkLoginInterval = null;
+    let qrCodeExpireTimer = null;
+    let qrCodeExpireTime = 300;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // 扫码登录按钮
+        document.getElementById('qrcodeLogin').addEventListener('click', function() {
+            doLogin('qrcode');
+        });
+        
+        // 唤醒登录按钮
+        document.getElementById('awakenLogin').addEventListener('click', function() {
+            doLogin('awaken');
+        });
+    });
+    
+    // 执行登录
+    async function doLogin(method) {
+        // 重置界面
+        resetLoginUI();
+        
+        // 显示状态
+        const statusEl = document.getElementById('loginStatus');
+        statusEl.classList.remove('d-none');
+        statusEl.textContent = '正在获取登录信息...';
+        statusEl.className = 'alert alert-info';
+        
+        try {
+            // 发送登录请求
+            const formData = new FormData();
+            formData.append('login_method', method);
+            
+            const response = await fetch('/api/wechat/login', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '登录请求失败');
+            }
+            
+            // 处理不同登录方式的响应
+            if (data.method === 'qrcode') {
+                // 保存登录信息
+                loginUUID = data.uuid;
+                deviceID = data.device_id;
+                
+                // 显示二维码
+                showQRCode(data.url);
+                
+                // 开始检查登录状态
+                startCheckLogin();
+                
+                // 显示状态
+                statusEl.textContent = '请使用微信扫描二维码登录';
+            } else if (data.method === 'awaken') {
+                // 保存登录信息
+                loginUUID = data.uuid;
+                
+                // 显示状态
+                statusEl.textContent = '已发送唤醒登录请求，请在手机上确认';
+                
+                // 开始检查登录状态
+                startCheckLogin();
+            }
+        } catch (error) {
+            console.error('登录错误:', error);
+            showLoginError(error.message);
+        }
+    }
+    
+    // 显示二维码
+    function showQRCode(url) {
+        const qrcodeContainer = document.getElementById('qrcodeContainer');
+        const qrcodeElement = document.getElementById('qrcode');
+        
+        // 清空并显示容器
+        qrcodeElement.innerHTML = '';
+        qrcodeContainer.classList.remove('d-none');
+        
+        // 生成二维码
+        QRCode.toCanvas(qrcodeElement, url, {
+            width: 200,
+            margin: 1
+        }, function(error) {
+            if (error) {
+                console.error('生成二维码失败:', error);
+                showLoginError('生成二维码失败: ' + error.message);
+            }
+        });
+        
+        // 设置倒计时
+        qrCodeExpireTime = 300; // 5分钟
+        updateQRCodeExpireTime();
+        
+        if (qrCodeExpireTimer) {
+            clearInterval(qrCodeExpireTimer);
+        }
+        
+        qrCodeExpireTimer = setInterval(function() {
+            qrCodeExpireTime--;
+            updateQRCodeExpireTime();
+            
+            if (qrCodeExpireTime <= 0) {
+                clearInterval(qrCodeExpireTimer);
+                clearInterval(checkLoginInterval);
+                showLoginError('二维码已过期，请重新获取');
+            }
+        }, 1000);
+    }
+    
+    // 更新二维码过期时间显示
+    function updateQRCodeExpireTime() {
+        const expireEl = document.querySelector('#qrcodeExpire span');
+        if (expireEl) {
+            expireEl.textContent = qrCodeExpireTime;
+        }
+    }
+    
+    // 开始检查登录状态
+    function startCheckLogin() {
+        if (checkLoginInterval) {
+            clearInterval(checkLoginInterval);
+        }
+        
+        // 每5秒检查一次
+        checkLoginInterval = setInterval(checkLoginStatus, 5000);
+        
+        // 立即检查一次
+        checkLoginStatus();
+    }
+    
+    // 检查登录状态
+    async function checkLoginStatus() {
+        if (!loginUUID) return;
+        
+        try {
+            let url = `/api/wechat/check_login/${loginUUID}`;
+            if (deviceID) {
+                url += `?device_id=${deviceID}`;
+            }
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '检查登录状态失败');
+            }
+            
+            if (data.logged_in) {
+                // 登录成功
+                clearInterval(checkLoginInterval);
+                clearInterval(qrCodeExpireTimer);
+                
+                // 显示成功
+                showLoginSuccess(data.wxid, data.nickname);
+                
+                // 3秒后刷新页面
+                setTimeout(function() {
+                    window.location.href = '/';
+                }, 3000);
+            } else {
+                // 更新状态
+                const statusEl = document.getElementById('loginStatus');
+                statusEl.textContent = '等待登录... ' + data.message;
+            }
+        } catch (error) {
+            console.error('检查登录状态错误:', error);
+            // 不要显示错误，继续检查
+        }
+    }
+    
+    // 显示登录成功
+    function showLoginSuccess(account, nickname) {
+        // 隐藏状态和二维码
+        document.getElementById('loginStatus').classList.add('d-none');
+        document.getElementById('qrcodeContainer').classList.add('d-none');
+        
+        // 显示结果区域
+        const resultEl = document.getElementById('loginResult');
+        const successEl = resultEl.querySelector('.login-success');
+        
+        resultEl.classList.remove('d-none');
+        successEl.classList.remove('d-none');
+        
+        // 设置账号信息
+        document.getElementById('loginAccount').textContent = account;
+        document.getElementById('loginNickname').textContent = nickname;
+    }
+    
+    // 显示登录错误
+    function showLoginError(message) {
+        // 重置计时器
+        clearInterval(checkLoginInterval);
+        clearInterval(qrCodeExpireTimer);
+        
+        // 隐藏状态和二维码
+        document.getElementById('qrcodeContainer').classList.add('d-none');
+        
+        // 显示错误
+        const statusEl = document.getElementById('loginStatus');
+        statusEl.textContent = '登录失败';
+        statusEl.className = 'alert alert-danger';
+        
+        // 显示结果区域
+        const resultEl = document.getElementById('loginResult');
+        const failEl = resultEl.querySelector('.login-fail');
+        
+        resultEl.classList.remove('d-none');
+        failEl.classList.remove('d-none');
+        
+        // 设置错误信息
+        document.getElementById('loginError').textContent = message;
+    }
+    
+    // 重置登录UI
+    function resetLoginUI() {
+        // 重置计时器
+        clearInterval(checkLoginInterval);
+        clearInterval(qrCodeExpireTimer);
+        
+        // 隐藏结果
+        document.getElementById('loginResult').classList.add('d-none');
+        document.getElementById('loginResult').querySelector('.login-success').classList.add('d-none');
+        document.getElementById('loginResult').querySelector('.login-fail').classList.add('d-none');
+        
+        // 隐藏状态和二维码
+        document.getElementById('loginStatus').classList.add('d-none');
+        document.getElementById('qrcodeContainer').classList.add('d-none');
+    }
+</script>
+{% endblock %} 
