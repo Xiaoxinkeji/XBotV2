@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>系统设置</h4>
+                <div>
+                    <button id="saveConfig" class="btn btn-primary">保存设置</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="loadingConfig" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载配置...</p>
+                </div>
+                
+                <div id="configError" class="alert alert-danger d-none">
+                    加载配置失败
+                </div>
+                
+                <div id="configContainer" class="d-none">
+                    <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">基本设置</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api" type="button" role="tab" aria-controls="api" aria-selected="false">API设置</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="web-tab" data-bs-toggle="tab" data-bs-target="#web" type="button" role="tab" aria-controls="web" aria-selected="false">Web界面</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="filter-tab" data-bs-toggle="tab" data-bs-target="#filter" type="button" role="tab" aria-controls="filter" aria-selected="false">消息过滤</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content p-3 border border-top-0 rounded-bottom" id="configTabContent">
+                        <!-- 基本设置 -->
+                        <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+                            <h5 class="mb-3">XYBot核心设置</h5>
+                            <div class="mb-3">
+                                <label for="version" class="form-label">版本</label>
+                                <input type="text" class="form-control" id="version" value="{{ config.XYBot.version }}" readonly>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="ignoreProtection" {% if config.XYBot.get('ignore-protection', false) %}checked{% endif %}>
+                                <label class="form-check-label" for="ignoreProtection">忽略风控保护机制</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="timezone" class="form-label">时区</label>
+                                <input type="text" class="form-control" id="timezone" value="{{ config.XYBot.get('timezone', 'Asia/Shanghai') }}">
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="autoRestart" {% if config.XYBot.get('auto-restart', false) %}checked{% endif %}>
+                                <label class="form-check-label" for="autoRestart">自动重启（文件变化时）</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">管理员列表</label>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div id="adminList">
+                                            {% for admin in config.XYBot.get('admins', []) %}
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control admin-item" value="{{ admin }}" aria-label="管理员ID">
+                                                <button type="button" class="btn btn-danger remove-admin" aria-label="删除管理员">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        <button type="button" id="addAdmin" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> 添加管理员
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- API设置 -->
+                        <div class="tab-pane fade" id="api" role="tabpanel" aria-labelledby="api-tab">
+                            <h5 class="mb-3">WechatAPI服务器设置</h5>
+                            <div class="mb-3">
+                                <label for="apiPort" class="form-label">端口</label>
+                                <input type="number" class="form-control" id="apiPort" value="{{ config.WechatAPIServer.get('port', 9000) }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="apiMode" class="form-label">运行模式</label>
+                                <select class="form-select" id="apiMode">
+                                    <option value="release" {% if config.WechatAPIServer.get('mode', 'release') == 'release' %}selected{% endif %}>生产环境</option>
+                                    <option value="debug" {% if config.WechatAPIServer.get('mode') == 'debug' %}selected{% endif %}>调试模式</option>
+                                </select>
+                            </div>
+                            <h5 class="mb-3 mt-4">Redis设置</h5>
+                            <div class="mb-3">
+                                <label for="redisHost" class="form-label">Redis主机</label>
+                                <input type="text" class="form-control" id="redisHost" value="{{ config.WechatAPIServer.get('redis-host', '127.0.0.1') }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="redisPort" class="form-label">Redis端口</label>
+                                <input type="number" class="form-control" id="redisPort" value="{{ config.WechatAPIServer.get('redis-port', 6379) }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="redisPassword" class="form-label">Redis密码</label>
+                                <input type="password" class="form-control" id="redisPassword" value="{{ config.WechatAPIServer.get('redis-password', '') }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="redisDb" class="form-label">Redis数据库编号</label>
+                                <input type="number" class="form-control" id="redisDb" value="{{ config.WechatAPIServer.get('redis-db', 0) }}">
+                            </div>
+                        </div>
+                        
+                        <!-- Web界面设置 -->
+                        <div class="tab-pane fade" id="web" role="tabpanel" aria-labelledby="web-tab">
+                            <h5 class="mb-3">Web管理界面设置</h5>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="webEnable" {% if config.WebInterface.get('enable', true) %}checked{% endif %}>
+                                <label class="form-check-label" for="webEnable">启用Web管理界面</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="webPort" class="form-label">端口</label>
+                                <input type="number" class="form-control" id="webPort" value="{{ config.WebInterface.get('port', 8080) }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="webHost" class="form-label">绑定地址</label>
+                                <input type="text" class="form-control" id="webHost" value="{{ config.WebInterface.get('host', '0.0.0.0') }}">
+                                <div class="form-text">使用0.0.0.0表示绑定所有地址</div>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="webDebug" {% if config.WebInterface.get('debug', false) %}checked{% endif %}>
+                                <label class="form-check-label" for="webDebug">调试模式</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="webUsername" class="form-label">管理员用户名</label>
+                                <input type="text" class="form-control" id="webUsername" value="{{ config.WebInterface.get('username', 'admin') }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="webPassword" class="form-label">管理员密码</label>
+                                <input type="password" class="form-control" id="webPassword" value="{{ config.WebInterface.get('password', 'admin123') }}">
+                            </div>
+                        </div>
+                        
+                        <!-- 消息过滤设置 -->
+                        <div class="tab-pane fade" id="filter" role="tabpanel" aria-labelledby="filter-tab">
+                            <h5 class="mb-3">消息过滤设置</h5>
+                            <div class="mb-3">
+                                <label for="ignoreMode" class="form-label">消息处理模式</label>
+                                <select class="form-select" id="ignoreMode">
+                                    <option value="None" {% if config.get('ignore-mode', 'None') == 'None' %}selected{% endif %}>处理所有消息</option>
+                                    <option value="Whitelist" {% if config.get('ignore-mode') == 'Whitelist' %}selected{% endif %}>仅处理白名单消息</option>
+                                    <option value="Blacklist" {% if config.get('ignore-mode') == 'Blacklist' %}selected{% endif %}>屏蔽黑名单消息</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">白名单</label>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div id="whitelistItems">
+                                            {% for item in config.get('whitelist', []) %}
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control whitelist-item" value="{{ item }}" aria-label="白名单ID">
+                                                <button type="button" class="btn btn-danger remove-whitelist" aria-label="删除白名单项">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        <button type="button" id="addWhitelist" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> 添加白名单
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">黑名单</label>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div id="blacklistItems">
+                                            {% for item in config.get('blacklist', []) %}
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control blacklist-item" value="{{ item }}" aria-label="黑名单ID">
+                                                <button type="button" class="btn btn-danger remove-blacklist" aria-label="删除黑名单项">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        <button type="button" id="addBlacklist" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> 添加黑名单
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet noopener" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<style>
+    .tab-content {
+        min-height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 隐藏加载动画，显示配置区域
+        document.getElementById('loadingConfig').classList.add('d-none');
+        document.getElementById('configContainer').classList.remove('d-none');
+        
+        // 保存按钮事件
+        document.getElementById('saveConfig').addEventListener('click', saveConfig);
+        
+        // 添加管理员按钮
+        document.getElementById('addAdmin').addEventListener('click', function() {
+            const adminList = document.getElementById('adminList');
+            const newItem = document.createElement('div');
+            newItem.className = 'input-group mb-2';
+            newItem.innerHTML = `
+                <input type="text" class="form-control admin-item" value="" aria-label="管理员ID">
+                <button type="button" class="btn btn-danger remove-admin" aria-label="删除管理员">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            adminList.appendChild(newItem);
+            
+            // 添加删除按钮事件
+            newItem.querySelector('.remove-admin').addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+        
+        // 添加白名单按钮
+        document.getElementById('addWhitelist').addEventListener('click', function() {
+            const list = document.getElementById('whitelistItems');
+            const newItem = document.createElement('div');
+            newItem.className = 'input-group mb-2';
+            newItem.innerHTML = `
+                <input type="text" class="form-control whitelist-item" value="" aria-label="白名单ID">
+                <button type="button" class="btn btn-danger remove-whitelist" aria-label="删除白名单项">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            list.appendChild(newItem);
+            
+            // 添加删除按钮事件
+            newItem.querySelector('.remove-whitelist').addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+        
+        // 添加黑名单按钮
+        document.getElementById('addBlacklist').addEventListener('click', function() {
+            const list = document.getElementById('blacklistItems');
+            const newItem = document.createElement('div');
+            newItem.className = 'input-group mb-2';
+            newItem.innerHTML = `
+                <input type="text" class="form-control blacklist-item" value="" aria-label="黑名单ID">
+                <button type="button" class="btn btn-danger remove-blacklist" aria-label="删除黑名单项">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            list.appendChild(newItem);
+            
+            // 添加删除按钮事件
+            newItem.querySelector('.remove-blacklist').addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+        
+        // 为所有删除按钮添加事件
+        document.querySelectorAll('.remove-admin').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+        
+        document.querySelectorAll('.remove-whitelist').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+        
+        document.querySelectorAll('.remove-blacklist').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
+    });
+    
+    // 保存配置
+    function saveConfig() {
+        // 收集所有配置项
+        const config = {
+            XYBot: {
+                version: document.getElementById('version').value,
+                'ignore-protection': document.getElementById('ignoreProtection').checked,
+                timezone: document.getElementById('timezone').value,
+                'auto-restart': document.getElementById('autoRestart').checked,
+                admins: []
+            },
+            WechatAPIServer: {
+                port: parseInt(document.getElementById('apiPort').value),
+                mode: document.getElementById('apiMode').value,
+                'redis-host': document.getElementById('redisHost').value,
+                'redis-port': parseInt(document.getElementById('redisPort').value),
+                'redis-password': document.getElementById('redisPassword').value,
+                'redis-db': parseInt(document.getElementById('redisDb').value)
+            },
+            WebInterface: {
+                enable: document.getElementById('webEnable').checked,
+                port: parseInt(document.getElementById('webPort').value),
+                host: document.getElementById('webHost').value,
+                debug: document.getElementById('webDebug').checked,
+                username: document.getElementById('webUsername').value,
+                password: document.getElementById('webPassword').value
+            },
+            'ignore-mode': document.getElementById('ignoreMode').value,
+            whitelist: [],
+            blacklist: []
+        };
+        
+        // 收集管理员列表
+        document.querySelectorAll('.admin-item').forEach(function(input) {
+            if (input.value.trim()) {
+                config.XYBot.admins.push(input.value.trim());
+            }
+        });
+        
+        // 收集白名单
+        document.querySelectorAll('.whitelist-item').forEach(function(input) {
+            if (input.value.trim()) {
+                config.whitelist.push(input.value.trim());
+            }
+        });
+        
+        // 收集黑名单
+        document.querySelectorAll('.blacklist-item').forEach(function(input) {
+            if (input.value.trim()) {
+                config.blacklist.push(input.value.trim());
+            }
+        });
+        
+        // 发送保存请求
+        fetch('/api/settings/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('配置已保存，部分设置可能需要重启后生效');
+            } else {
+                alert('保存失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('保存设置错误:', error);
+            alert('保存失败: ' + error.message);
+        });
+    }
+</script>
+{% endblock %} 

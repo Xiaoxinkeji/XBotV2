@@ -158,12 +158,24 @@ def get_robot_status():
             try:
                 # 获取已加载插件数量
                 if plugin_manager:
-                    plugin_count = len(plugin_manager.loaded_plugins)
+                    # 检查plugin_manager是否有loaded_plugins属性
+                    if hasattr(plugin_manager, 'loaded_plugins'):
+                        plugin_count = len(plugin_manager.loaded_plugins)
+                    elif hasattr(plugin_manager, 'plugins'):
+                        plugin_count = len(plugin_manager.plugins)
+                    else:
+                        # 使用文件系统计算活跃插件数量
+                        plugin_count = len([p for p in get_plugins() if p['enabled']])
                 
                 # 从数据库获取消息数量
                 # 此处可以添加消息统计逻辑
             except Exception as e:
                 logger.error(f"获取机器人状态出错: {e}")
+                # 发生错误时使用文件系统方法获取插件数量
+                try:
+                    plugin_count = len([p for p in get_plugins() if p['enabled']])
+                except:
+                    plugin_count = 0
     
     # 获取机器人个人信息
     profile_path = PROJECT_ROOT / "resource" / "profile.json"
@@ -917,6 +929,18 @@ async def check_login_status(uuid: str, device_id: Optional[str] = None, usernam
             
     except Exception as e:
         return {"success": False, "message": f"检查登录状态失败: {str(e)}"}
+
+@app.post("/api/settings/save")
+async def save_settings(config_data: Dict[str, Any] = Body(...), username: str = Depends(get_current_username)):
+    try:
+        # 保存配置到main_config.toml
+        with open(config_path, "w") as f:
+            tomllib.dump(config_data, f)
+        
+        return {"success": True, "message": "配置已保存"}
+    except Exception as e:
+        logger.error(f"保存配置失败: {e}")
+        return {"success": False, "message": f"保存配置失败: {str(e)}"}
 
 # 主函数
 def start_web_server():
