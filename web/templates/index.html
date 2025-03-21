@@ -438,7 +438,19 @@
     // 刷新状态
     async function refreshStatus() {
         try {
-            const response = await fetch('/api/status');
+            // 添加超时控制
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+            
+            const response = await fetch('/api/status', {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId); // 清除超时计时器
+            
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            
             const data = await response.json();
             
             if (!data.success) {
@@ -467,7 +479,15 @@
             updateRecentPlugins(data.plugins.recent);
         } catch (error) {
             console.error('刷新状态错误:', error);
-            document.getElementById('robotStatus').innerHTML = '<span class="text-danger">获取状态失败</span>';
+            document.getElementById('robotStatus').innerHTML = `<span class="text-danger">获取状态失败: ${error.message}</span>`;
+            
+            // 如果是超时错误，自动重试一次
+            if (error.name === 'AbortError') {
+                console.log('状态请求超时，将在5秒后重试');
+                setTimeout(() => {
+                    refreshStatus().catch(e => console.error('重试也失败:', e));
+                }, 5000);
+            }
         }
     }
     

@@ -94,7 +94,7 @@
                 <div class="col-md-4">
                     <div class="input-group">
                         <input type="text" id="searchInput" class="form-control" placeholder="搜索插件...">
-                        <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                        <button class="btn btn-outline-secondary" type="button" id="searchButton" title="搜索插件" aria-label="搜索插件">
                             <i class="bi bi-search"></i>
                         </button>
                     </div>
@@ -112,11 +112,11 @@
                 
                 <!-- 排序选项 -->
                 <div class="col-md-2">
-                    <select class="form-select" id="sortSelect">
+                    <select class="form-select" id="sortSelect" aria-label="排序方式" title="排序方式">
                         <option value="updated_at:desc">最新更新</option>
                         <option value="downloads:desc">下载量优先</option>
                         <option value="stars:desc">评分优先</option>
-                        <option value="name:asc">名称 A-Z</option>
+                        <option value="name:asc">名称A-Z</option>
                     </select>
                 </div>
             </div>
