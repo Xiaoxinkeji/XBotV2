@@ -1,11 +1,12 @@
-# XYBotV2
+# XBotV2 <small>1.0.0</small>
 
-> 🤖 功能丰富的微信机器人框架
+> 强大而灵活的微信机器人框架
 
-- AI对话、对接DeepSeek、积分系统、游戏互动、每日新闻、天气查询
-- 非Hook、非微信网页版
-- 支持: Windows ✅ Linux ✅ MacOS ✅
-- 全新架构解决XYBot第一代痛点！
+- 完整的微信API封装
+- 灵活的插件系统
+- 直观的Web管理界面
+- 多操作系统支持(Windows, Linux, MacOS)
+- 丰富的开发接口
 
-[GitHub](https://github.com/HenryXiaoYang/XYBotV2)
-[开始使用](README.md)
+[GitHub](https://github.com/xiaoxinkeji/xbotv2)
+[开始使用](#xbotv2文档中心)

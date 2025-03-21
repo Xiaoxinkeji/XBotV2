@@ -1,0 +1,86 @@
+# 许可证
+
+XBotV2采用MIT许可证发布，允许用户在遵守许可条款的前提下自由使用、修改和分发代码。
+
+## MIT许可证
+
+```
+MIT License
+
+Copyright (c) 2023-2024 XBotV2团队
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## 许可说明
+
+MIT许可证是一种宽松的许可证，主要有以下特点：
+
+1. **允许商业使用**：您可以将软件用于商业目的。
+2. **允许修改**：您可以对软件进行修改。
+3. **允许分发**：您可以分发软件。
+4. **允许私人使用**：您可以私下使用和修改软件。
+5. **要求保留版权声明**：任何再分发的软件副本都必须包含原始版权声明。
+
+## 免责声明
+
+虽然MIT许可证允许广泛使用XBotV2，但作为用户，您需要了解以下重要事项：
+
+1. **合法使用**：XBotV2仅可用于合法用途。使用本软件进行任何违法活动，责任由使用者自行承担。
+2. **微信使用政策**：使用XBotV2时，请遵守微信的用户协议和使用政策。
+3. **无保证**：XBotV2按"原样"提供，不提供任何形式的保证。
+4. **风险承担**：使用XBotV2可能导致您的微信账号被限制或封禁，这些风险需要由您自行承担。
+
+## 第三方依赖
+
+XBotV2使用了多个开源项目作为依赖，这些项目可能使用不同的许可证。主要的第三方依赖包括：
+
+1. **FastAPI**：使用MIT许可证
+2. **Pydantic**：使用MIT许可证
+3. **Loguru**：使用MIT许可证
+4. **aiohttp**：使用Apache 2.0许可证
+5. **SQLite**：公共领域
+6. **Redis**：使用BSD许可证
+7. **Jinja2**：使用BSD许可证
+8. **uvicorn**：使用BSD许可证
+
+使用XBotV2时，您也需要遵守这些第三方依赖的许可条款。
+
+## 插件许可
+
+XBotV2的插件系统允许第三方开发插件。这些插件可能使用不同的许可证：
+
+1. **官方插件**：随XBotV2一起分发的官方插件采用与XBotV2相同的MIT许可证。
+2. **第三方插件**：由社区成员开发的插件可能使用不同的许可证。使用这些插件时，请查阅并遵守各自的许可条款。
+
+## 贡献者许可协议
+
+向XBotV2项目贡献代码意味着您同意将您的贡献置于MIT许可证之下。如果您不希望您的代码使用此许可证，请不要向本项目提交贡献。
+
+## 联系方式
+
+如果您对许可证有任何疑问，或者发现任何违反许可证的行为，请通过以下方式联系我们：
+
+- 电子邮件：[3264913523@qq.com](mailto:3264913523@qq.com)
+- GitHub问题：[https://github.com/xiaoxinkeji/xbotv2/issues](https://github.com/xiaoxinkeji/xbotv2/issues)
+
+## 修订历史
+
+- 2023年1月1日：首次发布
+- 2024年1月1日：更新版权年份和联系方式 

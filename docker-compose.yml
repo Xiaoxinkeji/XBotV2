@@ -1,8 +1,8 @@
 services:
-  xybotv2:
+  xbotv2:
     build: .
-    image: henryxiaoyang/xybotv2:latest
-    container_name: XYBotV2
+    image: xiaoxinkeji/xbotv2:latest
+    container_name: XBotV2
     restart: on-failure:3
     ports:
       - "8080:8080"  # Web管理界面端口
@@ -19,5 +19,5 @@ services:
 volumes:
   redis_data:
     name: redis_data
-  xybotv2:
-    name: xybotv2
+  xbotv2:
+    name: xbotv2

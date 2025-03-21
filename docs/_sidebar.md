@@ -1,12 +1,20 @@
-* [🏠 首页](/)
-
-* 📖 部署教程
-    * [🪟 Windows部署](/zh_cn/Windows部署.md)
-    * [🐧 Linux部署](/zh_cn/Linux部署.md)
-    * [🐳 Docker部署(推荐)](/zh_cn/Docker部署.md)
-    * [🔧 配置文件](/zh_cn/配置文件.md)
-  * [⚙️ Dify配置](/zh_cn/Dify插件配置.md)
-
-* 📚 开发文档
-    * [🔌 插件开发](/zh_cn/插件开发.md)
-    * <a href="WechatAPIClient/index.html" target="_blank">🔗 WechatAPIClient文档</a>
+* [首页](/)
+* 部署指南
+  * [Docker部署](deploy/docker.md)
+  * [Windows部署](deploy/windows.md)
+  * [Linux部署](deploy/linux.md)
+  * [macOS部署](deploy/macos.md)
+* 基本使用
+  * [微信登录](usage/login.md)
+  * [插件管理](usage/plugins.md)
+  * [消息处理](usage/messages.md)
+* 系统配置
+  * [主配置文件](config/main_config.md)
+  * [插件配置](config/plugin_config.md)
+* 开发文档
+  * [架构概述](dev/architecture.md)
+  * [插件开发](dev/plugin_dev.md)
+  * [API参考](dev/api_reference.md)
+* [插件市场](marketplace.md)
+* [常见问题](faq.md)
+* [许可证](license.md)
