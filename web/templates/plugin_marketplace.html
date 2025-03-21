@@ -1,0 +1,1154 @@
+{% extends "base.html" %}
+
+{% block title %}插件市场 - XBotV2{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-img-top {
+        height: 160px;
+        object-fit: cover;
+    }
+    .plugin-card {
+        transition: transform 0.2s;
+    }
+    .plugin-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .rating {
+        color: #ffc107;
+    }
+    .rating-empty {
+        color: #e2e2e2;
+    }
+    .category-pill {
+        cursor: pointer;
+    }
+    .category-pill.active {
+        background-color: #0d6efd !important;
+        color: white !important;
+    }
+    #loadMoreBtn {
+        display: none;
+    }
+    .skeleton {
+        animation: skeleton-loading 1s linear infinite alternate;
+    }
+    @keyframes skeleton-loading {
+        0% {
+            background-color: #f0f0f0;
+        }
+        100% {
+            background-color: #e0e0e0;
+        }
+    }
+    .skeleton-card {
+        height: 100%;
+    }
+    .skeleton-img {
+        height: 160px;
+    }
+    .skeleton-text {
+        height: 12px;
+        margin-bottom: 8px;
+        border-radius: 2px;
+    }
+    .skeleton-text-sm {
+        width: 60%;
+    }
+    .skeleton-text-md {
+        width: 80%;
+    }
+    .skeleton-text-lg {
+        width: 100%;
+    }
+    .cursor-pointer {
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>插件市场</h2>
+        <div>
+            <button id="syncRepoBtn" class="btn btn-outline-primary me-2" title="从插件仓库同步最新插件列表">
+                <i class="bi bi-arrow-repeat"></i> 同步仓库
+            </button>
+            <button id="repoSettingsBtn" class="btn btn-outline-secondary" title="管理插件仓库">
+                <i class="bi bi-gear"></i> 仓库设置
+            </button>
+        </div>
+    </div>
+
+    <!-- 警告信息容器 -->
+    <div id="alertContainer"></div>
+
+    <!-- 筛选栏 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- 搜索框 -->
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <input type="text" id="searchInput" class="form-control" placeholder="搜索插件...">
+                        <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 分类筛选 -->
+                <div class="col-md-6">
+                    <div class="d-flex flex-wrap gap-2" id="categoriesContainer">
+                        <span class="badge bg-light text-dark border category-pill active" data-category="">全部</span>
+                        {% for category in categories %}
+                        <span class="badge bg-light text-dark border category-pill" data-category="{{ category }}">{{ category }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- 排序选项 -->
+                <div class="col-md-2">
+                    <select class="form-select" id="sortSelect">
+                        <option value="updated_at:desc">最新更新</option>
+                        <option value="downloads:desc">下载量优先</option>
+                        <option value="stars:desc">评分优先</option>
+                        <option value="name:asc">名称 A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 插件列表 -->
+    <div class="row g-4" id="pluginsContainer">
+        <!-- 加载骨架屏 -->
+        {% for i in range(8) %}
+        <div class="col-md-3 mb-4 skeleton-container">
+            <div class="card skeleton-card">
+                <div class="skeleton skeleton-img"></div>
+                <div class="card-body">
+                    <div class="skeleton skeleton-text skeleton-text-md"></div>
+                    <div class="skeleton skeleton-text skeleton-text-lg"></div>
+                    <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                    <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 加载更多按钮 -->
+    <div class="text-center mt-4 mb-5">
+        <button id="loadMoreBtn" class="btn btn-outline-primary">
+            加载更多
+        </button>
+        <div id="noMorePlugins" class="text-muted" style="display: none;">
+            没有更多插件了
+        </div>
+    </div>
+</div>
+
+<!-- 插件详情模态框 -->
+<div class="modal fade" id="pluginDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pluginDetailTitle">插件详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body" id="pluginDetailContent">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载插件详情...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 仓库设置模态框 -->
+<div class="modal fade" id="repoSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">插件仓库设置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div id="repoListContainer">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载仓库列表...</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6>添加新仓库</h6>
+                <form id="addRepoForm">
+                    <div class="mb-3">
+                        <label for="repoName" class="form-label">仓库名称</label>
+                        <input type="text" class="form-control" id="repoName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="repoUrl" class="form-label">仓库URL</label>
+                        <input type="url" class="form-control" id="repoUrl" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="repoDescription" class="form-label">仓库描述</label>
+                        <textarea class="form-control" id="repoDescription" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">添加仓库</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 页面全局变量
+    const state = {
+        currentPage: 1,
+        pageSize: 12,
+        totalPages: 0,
+        query: '',
+        category: '',
+        sortBy: 'updated_at',
+        sortOrder: 'desc',
+        isLoading: false
+    };
+    
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化分页、搜索和筛选
+        initializeFilters();
+        
+        // 初始化按钮事件
+        initializeButtons();
+        
+        // 加载插件列表
+        loadPlugins(true);
+    });
+    
+    // 初始化筛选器
+    function initializeFilters() {
+        // 分类筛选
+        const categories = document.querySelectorAll('.category-pill');
+        categories.forEach(category => {
+            category.addEventListener('click', function() {
+                // 移除其他分类的活动状态
+                categories.forEach(c => c.classList.remove('active'));
+                
+                // 添加当前分类的活动状态
+                this.classList.add('active');
+                
+                // 更新状态并重新加载
+                state.category = this.dataset.category;
+                state.currentPage = 1;
+                loadPlugins(true);
+            });
+        });
+        
+        // 搜索功能
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        
+        searchButton.addEventListener('click', function() {
+            state.query = searchInput.value.trim();
+            state.currentPage = 1;
+            loadPlugins(true);
+        });
+        
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                state.query = searchInput.value.trim();
+                state.currentPage = 1;
+                loadPlugins(true);
+            }
+        });
+        
+        // 排序功能
+        const sortSelect = document.getElementById('sortSelect');
+        sortSelect.addEventListener('change', function() {
+            const [sortBy, sortOrder] = this.value.split(':');
+            state.sortBy = sortBy;
+            state.sortOrder = sortOrder;
+            state.currentPage = 1;
+            loadPlugins(true);
+        });
+        
+        // 加载更多按钮
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        loadMoreBtn.addEventListener('click', function() {
+            if (state.currentPage < state.totalPages) {
+                state.currentPage++;
+                loadPlugins(false);
+            }
+        });
+    }
+    
+    // 初始化按钮事件
+    function initializeButtons() {
+        // 同步仓库按钮
+        const syncRepoBtn = document.getElementById('syncRepoBtn');
+        syncRepoBtn.addEventListener('click', function() {
+            syncRepositories();
+        });
+        
+        // 仓库设置按钮
+        const repoSettingsBtn = document.getElementById('repoSettingsBtn');
+        repoSettingsBtn.addEventListener('click', function() {
+            openRepositorySettings();
+        });
+        
+        // 添加仓库表单提交
+        const addRepoForm = document.getElementById('addRepoForm');
+        addRepoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            addRepository();
+        });
+    }
+    
+    // 加载插件列表
+    async function loadPlugins(clearList = false) {
+        if (state.isLoading) return;
+        state.isLoading = true;
+        
+        const pluginsContainer = document.getElementById('pluginsContainer');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        const noMorePlugins = document.getElementById('noMorePlugins');
+        
+        // 如果是清空列表重新加载，则显示骨架屏
+        if (clearList) {
+            pluginsContainer.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                pluginsContainer.innerHTML += `
+                <div class="col-md-3 mb-4 skeleton-container">
+                    <div class="card skeleton-card">
+                        <div class="skeleton skeleton-img"></div>
+                        <div class="card-body">
+                            <div class="skeleton skeleton-text skeleton-text-md"></div>
+                            <div class="skeleton skeleton-text skeleton-text-lg"></div>
+                            <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                            <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+        }
+        
+        try {
+            const offset = clearList ? 0 : (state.currentPage - 1) * state.pageSize;
+            const params = new URLSearchParams({
+                limit: state.pageSize,
+                offset: offset,
+                sort_by: state.sortBy,
+                sort_order: state.sortOrder
+            });
+            
+            if (state.query) {
+                params.append('query', state.query);
+            }
+            
+            if (state.category) {
+                params.append('category', state.category);
+            }
+            
+            const response = await fetch(`/api/plugin_marketplace?${params.toString()}`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取插件列表失败');
+            }
+            
+            // 如果是清空列表重新加载，则清空列表
+            if (clearList) {
+                pluginsContainer.innerHTML = '';
+            }
+            
+            // 添加插件卡片
+            data.plugins.forEach(plugin => {
+                pluginsContainer.appendChild(createPluginCard(plugin));
+            });
+            
+            // 更新分页状态
+            state.totalPages = data.total_pages;
+            
+            // 更新加载更多按钮
+            if (state.currentPage < state.totalPages) {
+                loadMoreBtn.style.display = 'inline-block';
+                noMorePlugins.style.display = 'none';
+            } else {
+                loadMoreBtn.style.display = 'none';
+                if (state.currentPage > 1 || data.plugins.length > 0) {
+                    noMorePlugins.style.display = 'block';
+                } else {
+                    noMorePlugins.textContent = '没有找到符合条件的插件';
+                    noMorePlugins.style.display = 'block';
+                }
+            }
+            
+            // 如果没有插件，显示提示
+            if (data.plugins.length === 0 && clearList) {
+                pluginsContainer.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <h4 class="text-muted">没有找到插件</h4>
+                    <p>尝试使用不同的搜索条件，或者<a href="#" id="syncRepoBtn2">同步仓库</a>获取最新插件列表。</p>
+                </div>`;
+                
+                document.getElementById('syncRepoBtn2').addEventListener('click', function(e) {
+                    e.preventDefault();
+                    syncRepositories();
+                });
+            }
+        } catch (error) {
+            console.error('加载插件列表失败:', error);
+            showAlert('加载插件列表失败: ' + error.message, 'danger');
+            
+            if (clearList) {
+                pluginsContainer.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <h4 class="text-danger">加载失败</h4>
+                    <p>${error.message}</p>
+                    <button id="retryBtn" class="btn btn-primary">重试</button>
+                </div>`;
+                
+                document.getElementById('retryBtn').addEventListener('click', function() {
+                    loadPlugins(true);
+                });
+            }
+        } finally {
+            state.isLoading = false;
+            
+            // 移除骨架屏
+            const skeletons = document.querySelectorAll('.skeleton-container');
+            skeletons.forEach(skeleton => {
+                skeleton.remove();
+            });
+        }
+    }
+    
+    // 创建插件卡片
+    function createPluginCard(plugin) {
+        const col = document.createElement('div');
+        col.className = 'col-md-3 mb-4';
+        
+        // 生成插件图标
+        const icon = plugin.icon_url || getRandomIcon(plugin.id);
+        
+        // 生成星级评分
+        const rating = plugin.avg_rating || 0;
+        const ratingStars = generateRatingStars(rating);
+        
+        // 计算下载量显示
+        const downloads = plugin.downloads > 999 ? (plugin.downloads / 1000).toFixed(1) + 'k' : plugin.downloads;
+        
+        // 官方标识
+        const officialBadge = plugin.is_official ? 
+            '<span class="badge bg-primary ms-2" title="官方插件">官方</span>' : '';
+        
+        col.innerHTML = `
+        <div class="card plugin-card h-100" data-plugin-id="${plugin.id}">
+            <img src="${icon}" class="card-img-top" alt="${plugin.name}">
+            <div class="card-body">
+                <h5 class="card-title d-flex align-items-center">
+                    ${plugin.name}${officialBadge}
+                </h5>
+                <p class="card-text text-muted small">
+                    ${plugin.description || '暂无描述'}
+                </p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="rating">
+                        ${ratingStars}
+                    </div>
+                    <small class="text-muted">
+                        下载: ${downloads}
+                    </small>
+                </div>
+                <div class="mt-2 d-flex justify-content-between align-items-center">
+                    <small class="text-muted">版本: ${plugin.version || '0.0.1'}</small>
+                    <small class="text-muted">${plugin.author || '未知'}</small>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent d-grid">
+                <button class="btn btn-sm btn-primary install-btn" data-plugin-id="${plugin.id}">
+                    <i class="bi bi-download"></i> 安装
+                </button>
+            </div>
+        </div>`;
+        
+        // 添加点击事件
+        const card = col.querySelector('.plugin-card');
+        card.addEventListener('click', function(e) {
+            // 如果点击的是安装按钮，则不显示详情
+            if (e.target.closest('.install-btn')) {
+                e.stopPropagation();
+                installPlugin(plugin.id);
+                return;
+            }
+            
+            // 显示插件详情
+            showPluginDetail(plugin.id);
+        });
+        
+        return col;
+    }
+    
+    // 生成星级评分
+    function generateRatingStars(rating) {
+        const fullStars = Math.floor(rating);
+        const halfStar = rating % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
+        
+        let stars = '';
+        
+        // 添加实心星星
+        for (let i = 0; i < fullStars; i++) {
+            stars += '<i class="bi bi-star-fill"></i>';
+        }
+        
+        // 添加半星
+        if (halfStar) {
+            stars += '<i class="bi bi-star-half"></i>';
+        }
+        
+        // 添加空心星星
+        for (let i = 0; i < emptyStars; i++) {
+            stars += '<i class="bi bi-star rating-empty"></i>';
+        }
+        
+        return stars;
+    }
+    
+    // 随机生成插件图标
+    function getRandomIcon(pluginId) {
+        const colors = [
+            '#007bff', '#6610f2', '#6f42c1', '#e83e8c', 
+            '#dc3545', '#fd7e14', '#ffc107', '#28a745', 
+            '#20c997', '#17a2b8', '#343a40', '#7952b3'
+        ];
+        
+        // 根据插件ID选择一个固定的颜色
+        const colorIndex = Array.from(pluginId).reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+        const bgColor = colors[colorIndex];
+        
+        // 生成插件名称首字母
+        const initial = pluginId.charAt(0).toUpperCase();
+        
+        return `https://dummyimage.com/320x160/${bgColor.substring(1)}/${getContrastColor(bgColor)}&text=${initial}`;
+    }
+    
+    // 获取对比色
+    function getContrastColor(hexColor) {
+        // 如果是以#开头的颜色，去掉#
+        if (hexColor.startsWith('#')) {
+            hexColor = hexColor.substring(1);
+        }
+        
+        // 解析RGB
+        const r = parseInt(hexColor.substring(0, 2), 16);
+        const g = parseInt(hexColor.substring(2, 4), 16);
+        const b = parseInt(hexColor.substring(4, 6), 16);
+        
+        // 计算亮度
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        
+        // 如果亮度低于128，返回白色，否则返回黑色
+        return brightness < 128 ? 'ffffff' : '000000';
+    }
+    
+    // 显示插件详情
+    async function showPluginDetail(pluginId) {
+        const modal = new bootstrap.Modal(document.getElementById('pluginDetailModal'));
+        const modalTitle = document.getElementById('pluginDetailTitle');
+        const modalContent = document.getElementById('pluginDetailContent');
+        
+        // 显示加载中
+        modalTitle.textContent = '插件详情';
+        modalContent.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">正在加载插件详情...</p>
+        </div>`;
+        
+        modal.show();
+        
+        try {
+            const response = await fetch(`/api/plugin_marketplace/${pluginId}`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取插件详情失败');
+            }
+            
+            const plugin = data.plugin;
+            
+            // 更新标题
+            modalTitle.textContent = plugin.name;
+            
+            // 生成插件图标
+            const icon = plugin.icon_url || getRandomIcon(plugin.id);
+            
+            // 生成星级评分
+            const rating = plugin.avg_rating || 0;
+            const ratingStars = generateRatingStars(rating);
+            
+            // 生成标签
+            const tags = plugin.tags?.map(tag => 
+                `<span class="badge bg-light text-dark border me-1">${tag}</span>`
+            ).join('') || '';
+            
+            // 生成依赖项
+            const requirements = plugin.requirements?.map(req => 
+                `<li>${req}</li>`
+            ).join('') || '<li>无</li>';
+            
+            // 生成版本历史
+            const versions = plugin.versions?.map(ver => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <strong>${ver.version}</strong>
+                        <small class="text-muted">${new Date(ver.released_at * 1000).toLocaleDateString()}</small>
+                    </div>
+                    <p class="mb-0 small">${ver.release_notes || '无发布说明'}</p>
+                </div>
+            `).join('') || '<p>无版本历史</p>';
+            
+            // 生成评分
+            const ratings = plugin.ratings?.map(r => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <div class="rating">
+                            ${generateRatingStars(r.rating)}
+                        </div>
+                        <small class="text-muted">${new Date(r.created_at * 1000).toLocaleDateString()}</small>
+                    </div>
+                    <p class="mb-0 small">${r.comment || '无评价'}</p>
+                </div>
+            `).join('') || '<p>暂无评价</p>';
+            
+            // 更新内容
+            modalContent.innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <img src="${icon}" class="img-fluid rounded mb-3" alt="${plugin.name}">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary install-btn" data-plugin-id="${plugin.id}">
+                            <i class="bi bi-download"></i> 安装插件
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="rating">
+                            ${ratingStars} <small class="text-muted">(${plugin.rating_count || 0}个评价)</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-secondary">${plugin.downloads || 0}次下载</span>
+                            ${plugin.is_official ? '<span class="badge bg-primary ms-1">官方插件</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <p>${plugin.description || '暂无描述'}</p>
+                    
+                    <div class="mb-3">
+                        <strong>作者:</strong> ${plugin.author || '未知'}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>版本:</strong> ${plugin.version || '0.0.1'}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>标签:</strong> 
+                        <div class="mt-1">${tags || '<span class="text-muted">无标签</span>'}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>依赖项:</strong>
+                        <ul class="mt-1">${requirements}</ul>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h5>版本历史</h5>
+                    <div class="mb-3">
+                        ${versions}
+                    </div>
+                    
+                    <hr>
+                    
+                    <h5>评价</h5>
+                    <div class="mb-3">
+                        ${ratings}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-primary" id="addRatingBtn">添加评价</button>
+                    </div>
+                    
+                    <div id="ratingForm" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">评分</label>
+                            <div class="rating-input">
+                                <i class="bi bi-star rating-star cursor-pointer" data-rating="1"></i>
+                                <i class="bi bi-star rating-star cursor-pointer" data-rating="2"></i>
+                                <i class="bi bi-star rating-star cursor-pointer" data-rating="3"></i>
+                                <i class="bi bi-star rating-star cursor-pointer" data-rating="4"></i>
+                                <i class="bi bi-star rating-star cursor-pointer" data-rating="5"></i>
+                                <input type="hidden" id="ratingValue" value="0">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ratingComment" class="form-label">评论</label>
+                            <textarea class="form-control" id="ratingComment" rows="3"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-secondary me-2" id="cancelRatingBtn">取消</button>
+                            <button class="btn btn-primary" id="submitRatingBtn" data-plugin-id="${plugin.id}">提交</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            // 添加安装按钮事件
+            const installBtn = modalContent.querySelector('.install-btn');
+            installBtn.addEventListener('click', function() {
+                installPlugin(pluginId);
+            });
+            
+            // 添加评分表单事件
+            const addRatingBtn = document.getElementById('addRatingBtn');
+            const ratingForm = document.getElementById('ratingForm');
+            const cancelRatingBtn = document.getElementById('cancelRatingBtn');
+            const submitRatingBtn = document.getElementById('submitRatingBtn');
+            const ratingStarsInput = document.querySelectorAll('.rating-star');
+            const ratingValueInput = document.getElementById('ratingValue');
+            
+            addRatingBtn.addEventListener('click', function() {
+                ratingForm.style.display = 'block';
+                addRatingBtn.style.display = 'none';
+            });
+            
+            cancelRatingBtn.addEventListener('click', function() {
+                ratingForm.style.display = 'none';
+                addRatingBtn.style.display = 'inline-block';
+                
+                // 重置评分
+                ratingValueInput.value = 0;
+                ratingStarsInput.forEach(star => {
+                    star.classList.remove('bi-star-fill');
+                    star.classList.add('bi-star');
+                });
+            });
+            
+            // 添加星星评分事件
+            ratingStarsInput.forEach(star => {
+                star.addEventListener('mouseover', function() {
+                    const rating = parseInt(this.dataset.rating);
+                    
+                    // 高亮当前星星及之前的星星
+                    ratingStarsInput.forEach(s => {
+                        const starRating = parseInt(s.dataset.rating);
+                        if (starRating <= rating) {
+                            s.classList.remove('bi-star');
+                            s.classList.add('bi-star-fill');
+                        } else {
+                            s.classList.remove('bi-star-fill');
+                            s.classList.add('bi-star');
+                        }
+                    });
+                });
+                
+                star.addEventListener('click', function() {
+                    const rating = parseInt(this.dataset.rating);
+                    ratingValueInput.value = rating;
+                });
+            });
+            
+            // 鼠标离开评分区域时恢复选定的评分
+            const ratingInput = document.querySelector('.rating-input');
+            ratingInput.addEventListener('mouseleave', function() {
+                const rating = parseInt(ratingValueInput.value);
+                
+                ratingStarsInput.forEach(s => {
+                    const starRating = parseInt(s.dataset.rating);
+                    if (starRating <= rating) {
+                        s.classList.remove('bi-star');
+                        s.classList.add('bi-star-fill');
+                    } else {
+                        s.classList.remove('bi-star-fill');
+                        s.classList.add('bi-star');
+                    }
+                });
+            });
+            
+            // 提交评分
+            submitRatingBtn.addEventListener('click', function() {
+                const pluginId = this.dataset.pluginId;
+                const rating = parseInt(ratingValueInput.value);
+                const comment = document.getElementById('ratingComment').value.trim();
+                
+                if (rating === 0) {
+                    showAlert('请选择评分', 'warning');
+                    return;
+                }
+                
+                submitRating(pluginId, rating, comment);
+            });
+        } catch (error) {
+            console.error('加载插件详情失败:', error);
+            modalContent.innerHTML = `
+            <div class="text-center py-5">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="text-danger">加载插件详情失败</h5>
+                <p>${error.message}</p>
+                <button class="btn btn-primary" id="retryDetailBtn">重试</button>
+            </div>`;
+            
+            document.getElementById('retryDetailBtn').addEventListener('click', function() {
+                showPluginDetail(pluginId);
+            });
+        }
+    }
+    
+    // 安装插件
+    async function installPlugin(pluginId) {
+        try {
+            // 显示确认对话框
+            if (!confirm('确定要安装此插件吗？')) {
+                return;
+            }
+            
+            // 显示加载中的提示
+            showAlert('正在安装插件，请稍候...', 'info');
+            
+            const response = await fetch(`/api/plugin_marketplace/install/${pluginId}`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '安装插件失败');
+            }
+            
+            showAlert(`插件安装成功: ${data.message}`, 'success');
+            
+            // 如果当前正在显示插件详情，关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('pluginDetailModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // 是否跳转到插件管理页面
+            if (confirm('插件安装成功，是否前往插件管理页面进行管理？')) {
+                window.location.href = '/plugins';
+            }
+        } catch (error) {
+            console.error('安装插件失败:', error);
+            showAlert('安装插件失败: ' + error.message, 'danger');
+        }
+    }
+    
+    // 提交评分
+    async function submitRating(pluginId, rating, comment) {
+        try {
+            const response = await fetch(`/api/plugin_marketplace/rating/${pluginId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rating,
+                    comment
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '提交评分失败');
+            }
+            
+            showAlert('评分提交成功', 'success');
+            
+            // 关闭评分表单
+            document.getElementById('ratingForm').style.display = 'none';
+            document.getElementById('addRatingBtn').style.display = 'inline-block';
+            
+            // 刷新插件详情
+            showPluginDetail(pluginId);
+        } catch (error) {
+            console.error('提交评分失败:', error);
+            showAlert('提交评分失败: ' + error.message, 'danger');
+        }
+    }
+    
+    // 同步仓库
+    async function syncRepositories() {
+        try {
+            // 显示加载中的提示
+            showAlert('正在同步仓库，请稍候...', 'info');
+            
+            const response = await fetch('/api/plugin_marketplace/sync', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '同步仓库失败');
+            }
+            
+            showAlert('仓库同步成功，正在刷新数据...', 'success');
+            
+            // 重新加载插件列表
+            state.currentPage = 1;
+            loadPlugins(true);
+        } catch (error) {
+            console.error('同步仓库失败:', error);
+            showAlert('同步仓库失败: ' + error.message, 'danger');
+        }
+    }
+    
+    // 打开仓库设置
+    async function openRepositorySettings() {
+        const modal = new bootstrap.Modal(document.getElementById('repoSettingsModal'));
+        const repoListContainer = document.getElementById('repoListContainer');
+        
+        // 显示加载中
+        repoListContainer.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">正在加载仓库列表...</p>
+        </div>`;
+        
+        modal.show();
+        
+        try {
+            const response = await fetch('/api/plugin_marketplace/repositories');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '获取仓库列表失败');
+            }
+            
+            const repositories = data.repositories;
+            
+            if (repositories.length === 0) {
+                repoListContainer.innerHTML = `
+                <div class="text-center py-3">
+                    <p class="text-muted">暂无仓库</p>
+                </div>`;
+                return;
+            }
+            
+            // 生成仓库列表
+            repoListContainer.innerHTML = `
+            <div class="list-group">
+                ${repositories.map(repo => `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6>${repo.name} ${repo.is_official ? '<span class="badge bg-primary">官方</span>' : ''}</h6>
+                            <small class="text-muted">${repo.url}</small>
+                            <p class="mb-0 small">${repo.description || '暂无描述'}</p>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="form-check form-switch me-2">
+                                <input class="form-check-input repo-toggle" type="checkbox" id="repo-${repo.url.replace(/[^\w]/g, '_')}" 
+                                    data-url="${repo.url}" ${repo.enabled ? 'checked' : ''}
+                                    ${repo.is_official ? 'disabled' : ''}>
+                            </div>
+                            ${repo.is_official ? '' : `
+                            <button class="btn btn-sm btn-outline-danger delete-repo-btn" data-url="${repo.url}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                `).join('')}
+            </div>`;
+            
+            // 添加仓库切换事件
+            const repoToggles = document.querySelectorAll('.repo-toggle');
+            repoToggles.forEach(toggle => {
+                toggle.addEventListener('change', function() {
+                    const url = this.dataset.url;
+                    const enabled = this.checked;
+                    updateRepositoryStatus(url, enabled);
+                });
+            });
+            
+            // 添加删除仓库事件
+            const deleteRepoBtns = document.querySelectorAll('.delete-repo-btn');
+            deleteRepoBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const url = this.dataset.url;
+                    deleteRepository(url);
+                });
+            });
+        } catch (error) {
+            console.error('获取仓库列表失败:', error);
+            repoListContainer.innerHTML = `
+            <div class="text-center py-3">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem;"></i>
+                </div>
+                <p class="text-danger">获取仓库列表失败: ${error.message}</p>
+                <button class="btn btn-primary" id="retryRepoListBtn">重试</button>
+            </div>`;
+            
+            document.getElementById('retryRepoListBtn').addEventListener('click', function() {
+                openRepositorySettings();
+            });
+        }
+    }
+    
+    // 添加仓库
+    async function addRepository() {
+        const repoName = document.getElementById('repoName').value.trim();
+        const repoUrl = document.getElementById('repoUrl').value.trim();
+        const repoDescription = document.getElementById('repoDescription').value.trim();
+        
+        if (!repoName || !repoUrl) {
+            showAlert('请填写仓库名称和URL', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/plugin_marketplace/repositories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: repoName,
+                    url: repoUrl,
+                    description: repoDescription
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '添加仓库失败');
+            }
+            
+            showAlert('仓库添加成功', 'success');
+            
+            // 清空表单
+            document.getElementById('repoName').value = '';
+            document.getElementById('repoUrl').value = '';
+            document.getElementById('repoDescription').value = '';
+            
+            // 刷新仓库列表
+            openRepositorySettings();
+        } catch (error) {
+            console.error('添加仓库失败:', error);
+            showAlert('添加仓库失败: ' + error.message, 'danger');
+        }
+    }
+    
+    // 更新仓库状态
+    async function updateRepositoryStatus(url, enabled) {
+        try {
+            const response = await fetch(`/api/plugin_marketplace/repositories/${encodeURIComponent(url)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '更新仓库状态失败');
+            }
+            
+            showAlert('仓库状态更新成功', 'success');
+        } catch (error) {
+            console.error('更新仓库状态失败:', error);
+            showAlert('更新仓库状态失败: ' + error.message, 'danger');
+            
+            // 恢复复选框状态
+            const toggle = document.querySelector(`.repo-toggle[data-url="${url}"]`);
+            if (toggle) {
+                toggle.checked = !enabled;
+            }
+        }
+    }
+    
+    // 删除仓库
+    async function deleteRepository(url) {
+        try {
+            // 显示确认对话框
+            if (!confirm('确定要删除此仓库吗？这将同时删除该仓库中的所有插件信息。')) {
+                return;
+            }
+            
+            const response = await fetch(`/api/plugin_marketplace/repositories/${encodeURIComponent(url)}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || '删除仓库失败');
+            }
+            
+            showAlert('仓库删除成功', 'success');
+            
+            // 刷新仓库列表
+            openRepositorySettings();
+        } catch (error) {
+            console.error('删除仓库失败:', error);
+            showAlert('删除仓库失败: ' + error.message, 'danger');
+        }
+    }
+    
+    // 显示提示信息
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alertContainer');
+        const alertId = 'alert-' + Date.now();
+        
+        const alertHTML = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+        </div>`;
+        
+        alertContainer.innerHTML += alertHTML;
+        
+        // 5秒后自动关闭
+        setTimeout(() => {
+            const alert = document.getElementById(alertId);
+            if (alert) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+</script>
+{% endblock %} 

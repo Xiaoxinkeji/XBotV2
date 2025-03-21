@@ -29,6 +29,7 @@ import git
 from pydantic import BaseModel
 import traceback
 import glob
+from database.plugin_repository import get_plugin_repository, init_plugin_repository
 
 # 确保能导入主项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1682,6 +1683,220 @@ def manage_log_files(logs_dir, max_files=20, keep_files=10):
         logger.error(f"管理日志文件时出错: {e}")
         raise
 
+@app.get("/api/plugin_marketplace")
+async def get_plugin_marketplace_api(
+    category: str = None, 
+    query: str = None, 
+    limit: int = 50, 
+    offset: int = 0, 
+    sort_by: str = "updated_at", 
+    sort_order: str = "desc",
+    username: str = Depends(get_current_username)
+):
+    """获取插件市场中的插件列表"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 获取插件列表
+        plugins, total = repo.get_plugins(
+            category=category, 
+            query=query, 
+            limit=limit, 
+            offset=offset, 
+            sort_by=sort_by, 
+            sort_order=sort_order
+        )
+        
+        return {
+            "success": True, 
+            "plugins": plugins, 
+            "total": total,
+            "page": offset // limit + 1,
+            "total_pages": (total + limit - 1) // limit
+        }
+    except Exception as e:
+        logger.error(f"获取插件市场数据失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"获取插件市场数据失败: {str(e)}"}
+
+@app.get("/api/plugin_marketplace/{plugin_id}")
+async def get_plugin_details_api(plugin_id: str, username: str = Depends(get_current_username)):
+    """获取插件详细信息"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 获取插件详细信息
+        plugin = repo.get_plugin_details(plugin_id)
+        
+        if not plugin:
+            return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        
+        return {"success": True, "plugin": plugin}
+    except Exception as e:
+        logger.error(f"获取插件详细信息失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"获取插件详细信息失败: {str(e)}"}
+
+@app.post("/api/plugin_marketplace/sync")
+async def sync_plugin_repositories_api(username: str = Depends(get_current_username)):
+    """同步插件仓库数据"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 同步仓库数据
+        await repo.sync_repositories()
+        
+        return {"success": True, "message": "插件仓库同步完成"}
+    except Exception as e:
+        logger.error(f"同步插件仓库失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"同步插件仓库失败: {str(e)}"}
+
+@app.post("/api/plugin_marketplace/install/{plugin_id}")
+async def install_marketplace_plugin_api(
+    plugin_id: str, 
+    version: str = None,
+    username: str = Depends(get_current_username)
+):
+    """从插件市场安装插件"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 下载插件
+        plugin_file = await repo.download_plugin(plugin_id, version)
+        
+        # 获取插件信息
+        plugin_info = repo.get_plugin_details(plugin_id)
+        
+        if not plugin_info:
+            return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        
+        # 调用现有的安装插件函数来完成安装
+        result = await install_plugin("zip_file", local_file=plugin_file)
+        
+        if result.get("success"):
+            return {
+                "success": True, 
+                "message": f"插件 {plugin_info['name']} 安装成功", 
+                "plugin_id": result.get("plugin_id")
+            }
+        else:
+            return {"success": False, "message": result.get("message")}
+    except Exception as e:
+        logger.error(f"安装插件失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"安装插件失败: {str(e)}"}
+
+@app.get("/api/plugin_marketplace/repositories")
+async def get_repositories_api(username: str = Depends(get_current_username)):
+    """获取仓库列表"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 获取仓库列表
+        repositories = repo.get_repositories()
+        
+        return {"success": True, "repositories": repositories}
+    except Exception as e:
+        logger.error(f"获取仓库列表失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"获取仓库列表失败: {str(e)}"}
+
+@app.post("/api/plugin_marketplace/repositories")
+async def add_repository_api(
+    url: str = Body(...),
+    name: str = Body(...),
+    description: str = Body(""),
+    username: str = Depends(get_current_username)
+):
+    """添加插件仓库"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 添加仓库
+        repo.add_repository(url, name, description)
+        
+        return {"success": True, "message": f"仓库 {name} 添加成功"}
+    except Exception as e:
+        logger.error(f"添加仓库失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"添加仓库失败: {str(e)}"}
+
+@app.delete("/api/plugin_marketplace/repositories/{url:path}")
+async def remove_repository_api(url: str, username: str = Depends(get_current_username)):
+    """删除插件仓库"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 删除仓库
+        repo.remove_repository(url)
+        
+        return {"success": True, "message": f"仓库删除成功"}
+    except Exception as e:
+        logger.error(f"删除仓库失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"删除仓库失败: {str(e)}"}
+
+@app.put("/api/plugin_marketplace/repositories/{url:path}")
+async def update_repository_status_api(
+    url: str, 
+    enabled: bool = Body(...),
+    username: str = Depends(get_current_username)
+):
+    """更新仓库状态"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 更新仓库状态
+        repo.update_repository_status(url, enabled)
+        
+        return {"success": True, "message": f"仓库状态更新成功"}
+    except Exception as e:
+        logger.error(f"更新仓库状态失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"更新仓库状态失败: {str(e)}"}
+
+@app.post("/api/plugin_marketplace/rating/{plugin_id}")
+async def add_plugin_rating_api(
+    plugin_id: str,
+    rating: int = Body(...),
+    comment: str = Body(""),
+    username: str = Depends(get_current_username)
+):
+    """为插件添加评分和评论"""
+    try:
+        # 获取插件仓库实例
+        repo = get_plugin_repository()
+        
+        # 添加评分
+        repo.add_plugin_rating(plugin_id, username, rating, comment)
+        
+        return {"success": True, "message": "评分提交成功"}
+    except Exception as e:
+        logger.error(f"添加评分失败: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"添加评分失败: {str(e)}"}
+
+# 在应用启动时初始化插件仓库
+@app.on_event("startup")
+async def startup_plugin_repository():
+    """在应用启动时初始化插件仓库"""
+    try:
+        # 初始化插件仓库
+        init_plugin_repository()
+        logger.info("插件仓库初始化完成")
+    except Exception as e:
+        logger.error(f"初始化插件仓库失败: {e}")
+        logger.error(traceback.format_exc())
+
 # 主函数
 def start_web_server():
     host = web_config.get("host", "0.0.0.0")
@@ -1689,6 +1904,22 @@ def start_web_server():
     debug = web_config.get("debug", False)
     
     uvicorn.run("web.app:app", host=host, port=port, reload=debug)
+
+# 在其他页面路由附近添加以下代码
+@app.get("/plugin_marketplace", response_class=HTMLResponse)
+async def get_plugin_marketplace_page(request: Request, username: str = Depends(get_current_username)):
+    """插件市场页面"""
+    # 获取插件分类
+    categories = ["工具", "娱乐", "信息", "社交", "数据", "科学", "办公", "其他"]
+    
+    return templates.TemplateResponse(
+        "plugin_marketplace.html", 
+        {
+            "request": request,
+            "categories": categories,
+            "admin_name": username
+        }
+    )
 
 if __name__ == "__main__":
     start_web_server() 
