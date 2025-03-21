@@ -20,7 +20,22 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     # 安装可选依赖，确保功能完整性
     if [ -f "requirements-optional.txt" ]; then pip install --no-cache-dir -r requirements-optional.txt; fi && \
     # 安装特殊包
-    python scripts/install_xywechatpad.py
+    echo "尝试安装xywechatpad-binary..." && \
+    # 方法1: 从脚本安装
+    if [ -f "scripts/install_xywechatpad.py" ]; then \
+      python scripts/install_xywechatpad.py; \
+    elif [ -f "scripts/install_xywechatpad.sh" ]; then \
+      bash scripts/install_xywechatpad.sh; \
+    # 方法2: 直接从源代码安装
+    elif [ -d "xywechatpad-binary" ]; then \
+      pip install -e xywechatpad-binary; \
+    # 方法3: 从wheels目录安装
+    elif [ -d "wheels" ] && ls wheels/xywechatpad-binary*.whl 1>/dev/null 2>&1; then \
+      pip install wheels/xywechatpad-binary*.whl; \
+    # 如果所有方法都失败，继续但提供警告
+    else \
+      echo "警告: 未找到xywechatpad安装源，微信API功能将不可用，但其他功能正常"; \
+    fi
 
 # 过滤掉问题依赖并安装其他依赖
 RUN grep -v -E "matplotlib~=3.10.0|pysilk>=0.5" requirements.txt > requirements_filtered.txt && \
@@ -42,20 +57,6 @@ fi
 RUN if [ ! -f "/app/web_ui/dependencies.py" ]; then \
     echo '"""Web UI 依赖项"""\n\nimport logging\nfrom typing import Optional\nfrom fastapi import Depends, HTTPException, status, Request\nfrom fastapi.security import OAuth2PasswordBearer\nfrom pydantic import BaseModel\n\nlogger = logging.getLogger(__name__)\n\nclass User(BaseModel):\n    username: str\n    email: Optional[str] = None\n\nasync def get_current_user(token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/auth/token"))):\n    return User(username="admin")\n' > /app/web_ui/dependencies.py; \
 fi
-
-# 尝试安装xywechatpad-binary
-RUN echo "尝试安装xywechatpad-binary..." && \
-    mkdir -p wheels && \
-    python3 scripts/download_wheel.py || \
-    if [ -d "xywechatpad-binary" ]; then \
-      echo "尝试从本地安装xywechatpad-binary" && \
-      pip install -e xywechatpad-binary; \
-    elif [ -d "wheels" ] && [ -f "$(find wheels -name 'xywechatpad-binary*.whl' 2>/dev/null)" ]; then \
-      echo "尝试从wheel安装xywechatpad-binary" && \
-      pip install $(find wheels -name 'xywechatpad-binary*.whl'); \
-    else \
-      echo "警告: 无法安装 xywechatpad-binary 包，微信API功能将不可用"; \
-    fi
 
 # 设置环境变量
 ENV PYTHONPATH=/app
