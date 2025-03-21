@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}插件管理 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>插件管理</h4>
+        <button class="btn btn-sm btn-primary" id="refreshPlugins">刷新插件列表</button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>插件名称</th>
+                        <th>插件ID</th>
+                        <th>描述</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plugin in plugins %}
+                    <tr>
+                        <td>{{ plugin.name }}</td>
+                        <td>{{ plugin.id }}</td>
+                        <td>{{ plugin.description }}</td>
+                        <td>
+                            <span class="badge {% if plugin.enabled %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if plugin.enabled %}已启用{% else %}已禁用{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button 
+                                    class="btn btn-sm {% if plugin.enabled %}btn-danger{% else %}btn-success{% endif %} toggle-plugin" 
+                                    data-plugin-id="{{ plugin.id }}" 
+                                    data-plugin-enabled="{{ 'true' if plugin.enabled else 'false' }}">
+                                    {% if plugin.enabled %}禁用{% else %}启用{% endif %}
+                                </button>
+                                <button class="btn btn-sm btn-info plugin-config" data-plugin-id="{{ plugin.id }}">配置</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 配置模态框 -->
+<div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">插件配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div id="configForm">
+                    <!-- 动态加载插件配置 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="saveConfig">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 刷新插件列表
+        document.getElementById('refreshPlugins').addEventListener('click', function() {
+            window.location.reload();
+        });
+
+        // 启用/禁用插件
+        document.querySelectorAll('.toggle-plugin').forEach(button => {
+            button.addEventListener('click', function() {
+                const pluginId = this.getAttribute('data-plugin-id');
+                const enabled = this.getAttribute('data-plugin-enabled') === 'true';
+                
+                // 发送请求切换状态
+                fetch(`/api/plugins/${pluginId}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ enabled: !enabled })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert('操作失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请查看控制台日志');
+                });
+            });
+        });
+
+        // 插件配置
+        document.querySelectorAll('.plugin-config').forEach(button => {
+            button.addEventListener('click', function() {
+                const pluginId = this.getAttribute('data-plugin-id');
+                
+                // 获取插件配置
+                fetch(`/api/plugins/${pluginId}/config`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 构建配置表单
+                        const configForm = document.getElementById('configForm');
+                        configForm.innerHTML = '';
+                        
+                        // 创建表单元素显示插件配置（这里只是简单示例）
+                        for (const key in data.config) {
+                            const formGroup = document.createElement('div');
+                            formGroup.className = 'mb-3';
+                            
+                            const label = document.createElement('label');
+                            label.className = 'form-label';
+                            label.textContent = key;
+                            
+                            const input = document.createElement('input');
+                            input.className = 'form-control';
+                            input.name = key;
+                            input.value = data.config[key];
+                            
+                            formGroup.appendChild(label);
+                            formGroup.appendChild(input);
+                            configForm.appendChild(formGroup);
+                        }
+                        
+                        // 保存按钮数据属性
+                        document.getElementById('saveConfig').setAttribute('data-plugin-id', pluginId);
+                        
+                        // 显示模态框
+                        new bootstrap.Modal(document.getElementById('configModal')).show();
+                    } else {
+                        alert('获取配置失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取配置失败，请查看控制台日志');
+                });
+            });
+        });
+
+        // 保存配置
+        document.getElementById('saveConfig').addEventListener('click', function() {
+            const pluginId = this.getAttribute('data-plugin-id');
+            const formData = {};
+            
+            // 收集表单数据
+            document.querySelectorAll('#configForm input').forEach(input => {
+                formData[input.name] = input.value;
+            });
+            
+            // 保存配置
+            fetch(`/api/plugins/${pluginId}/config`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+                    alert('配置保存成功');
+                } else {
+                    alert('保存配置失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('保存配置失败，请查看控制台日志');
+            });
+        });
+    });
+</script>
+{% endblock %} 

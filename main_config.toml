@@ -24,6 +24,15 @@ timezone = "Asia/Shanghai"             # 时区设置，中国用户使用 Asia/
 # 实验性功能，如果main_config.toml配置改动，或者plugins文件夹有改动，自动重启。可以在开发时使用，不建议在生产环境使用。
 auto-restart = false                 # 仅建议在开发时启用，生产环境保持false
 
+# Web管理界面设置
+[WebInterface]
+enable = true                        # 是否启用Web管理界面
+port = 8080                          # Web管理界面端口
+host = "0.0.0.0"                     # Web管理界面绑定地址，0.0.0.0表示所有地址
+debug = false                        # 是否开启调试模式
+username = "admin"                   # 管理员用户名
+password = "admin123"                # 管理员密码，请修改为强密码
+
 # 消息过滤设置
 ignore-mode = "None"            # 消息处理模式：
 # "None" - 处理所有消息

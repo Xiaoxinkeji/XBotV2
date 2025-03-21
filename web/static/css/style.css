@@ -1,0 +1,84 @@
+/* 全局样式 */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Microsoft YaHei', sans-serif;
+}
+
+/* 导航栏样式 */
+.navbar {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+/* 卡片样式 */
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    font-weight: bold;
+}
+
+/* 按钮样式 */
+.btn {
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+/* 表格样式 */
+.table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+/* 状态指示器 */
+.status-indicator {
+    transition: all 0.3s ease;
+}
+
+/* 自适应布局 */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .card {
+        margin-bottom: 15px;
+    }
+}
+
+/* 图表容器 */
+canvas {
+    max-width: 100%;
+}
+
+/* 动画效果 */
+.btn:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s;
+}
+
+/* 模态框样式 */
+.modal-content {
+    border-radius: 10px;
+    border: none;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+}
+
+/* 表单元素 */
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.25);
+} 

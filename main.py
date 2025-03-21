@@ -4,6 +4,7 @@ import sys
 import time
 import tomllib
 import traceback
+import threading
 from pathlib import Path
 
 from loguru import logger
@@ -53,6 +54,23 @@ async def main():
 
     # 检查是否启用自动重启
     auto_restart = config.get("XYBot", {}).get("auto-restart", False)
+    
+    # 检查是否启用Web管理界面
+    web_enabled = config.get("WebInterface", {}).get("enable", False)
+    
+    # 启动Web服务器
+    if web_enabled:
+        try:
+            from web import start_web_server
+            # 使用线程启动Web服务器
+            logger.info("正在启动Web管理界面...")
+            web_thread = threading.Thread(target=start_web_server)
+            web_thread.daemon = True  # 设置为守护线程，主线程结束时自动结束
+            web_thread.start()
+            logger.success("Web管理界面已启动")
+        except Exception as e:
+            logger.error(f"启动Web管理界面失败: {e}")
+            logger.error(traceback.format_exc())
 
     if auto_restart:
         # 设置监控

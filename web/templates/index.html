@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}XBotV2 控制面板{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>机器人状态</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="status-indicator {% if robot.online %}online{% else %}offline{% endif %}"></div>
+                        <h5 class="mt-2">{% if robot.online %}在线{% else %}离线{% endif %}</h5>
+                    </div>
+                    <div class="col-md-8">
+                        <table class="table">
+                            <tr>
+                                <th>微信ID:</th>
+                                <td>{{ robot.wxid or '未登录' }}</td>
+                            </tr>
+                            <tr>
+                                <th>昵称:</th>
+                                <td>{{ robot.nickname or '未登录' }}</td>
+                            </tr>
+                            <tr>
+                                <th>微信号:</th>
+                                <td>{{ robot.alias or '未登录' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>统计信息</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="text-center">
+                        <h2>{{ robot.plugin_count }}</h2>
+                        <p>已加载插件</p>
+                    </div>
+                    <div class="text-center">
+                        <h2>{{ robot.message_count }}</h2>
+                        <p>消息总数</p>
+                    </div>
+                </div>
+                <a href="/plugins" class="btn btn-primary w-100">插件管理</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h4>消息统计</h4>
+            </div>
+            <div class="card-body">
+                <canvas id="messageChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 消息统计图表
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('messageChart').getContext('2d');
+        const messageChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                datasets: [{
+                    label: '每日消息数',
+                    data: [65, 59, 80, 81, 56, 55, 40],
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // 自动刷新状态
+        setInterval(function() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    // 更新状态显示
+                    const statusIndicator = document.querySelector('.status-indicator');
+                    const statusText = document.querySelector('.status-indicator + h5');
+                    
+                    if (data.online) {
+                        statusIndicator.classList.add('online');
+                        statusIndicator.classList.remove('offline');
+                        statusText.textContent = '在线';
+                    } else {
+                        statusIndicator.classList.add('offline');
+                        statusIndicator.classList.remove('online');
+                        statusText.textContent = '离线';
+                    }
+                    
+                    // 更新其他数据
+                    // ...
+                });
+        }, 5000);
+    });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-indicator {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin: 0 auto;
+        background-color: #e74c3c;
+    }
+    
+    .status-indicator.online {
+        background-color: #2ecc71;
+    }
+    
+    .status-indicator.offline {
+        background-color: #e74c3c;
+    }
+</style>
+{% endblock %} 
