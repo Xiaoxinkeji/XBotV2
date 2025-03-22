@@ -419,7 +419,7 @@ def start_web_server():
     
     # 获取配置
     web_config = config.get("WebInterface", {})
-    port = web_config.get("port", 8081)
+    port = web_config.get("port", 8080)
     host = web_config.get("host", "0.0.0.0")
     debug = web_config.get("debug", False)
     
