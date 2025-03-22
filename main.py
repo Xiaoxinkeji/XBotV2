@@ -151,7 +151,8 @@ async def main():
 
 if __name__ == "__main__":
     # 防止低版本Python运行
-    if sys.version_info.major != 3 or sys.version_info.minor != 11:
+    skip_version_check = os.environ.get("XBOT_SKIP_VERSION_CHECK", "0") == "1"
+    if not skip_version_check and (sys.version_info.major != 3 or sys.version_info.minor != 11):
         print("请使用Python3.11")
         sys.exit(1)
     print(

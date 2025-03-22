@@ -13,10 +13,17 @@ mkdir -p /var/log/xbotv2
 mkdir -p /app/logs
 mkdir -p /app/resource
 mkdir -p /app/database
+mkdir -p /app/web/templates
+mkdir -p /app/web/static
+mkdir -p /app/plugins
 
-# 设置日志目录权限
+# 设置目录权限
 chmod -R 755 /var/log/xbotv2
 chmod -R 755 /app/logs
+chmod -R 755 /app/resource
+chmod -R 755 /app/database
+chmod -R 755 /app/web
+chmod -R 755 /app/plugins
 
 # 检查关键依赖是否已安装
 echo "Checking for required dependencies..."
@@ -59,4 +66,6 @@ export PYTHONUNBUFFERED=1
 
 # 启动XBotV2主程序（包含机器人核心和Web服务）
 cd /app
+# 允许跳过Python版本检查
+export XBOT_SKIP_VERSION_CHECK=1
 python main.py

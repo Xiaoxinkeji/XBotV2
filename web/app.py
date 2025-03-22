@@ -17,19 +17,17 @@ import sys
 import time
 import traceback
 import secrets
-# 处理tomli与toml的兼容性
-try:
-    import tomli  # Python 3.11前的TOML解析
-except ImportError:
-    tomli = None
-    
-import toml  # 通用TOML解析库
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
+import re
 
 # 导入统一的配置工具
 from utils.config_utils import load_toml_config, save_toml_config
+
+# 定义模块加载状态
+MODULES_LOADED = False
 
 # 配置日志
 logger = logging.getLogger("web")
@@ -49,6 +47,26 @@ logger.info(f"项目根目录: {BASE_DIR}")
 # 定义全局使用的配置路径
 config_path = Path(BASE_DIR) / "main_config.toml"
 PROJECT_ROOT = Path(BASE_DIR)
+
+# 确保必要的目录存在
+def ensure_directories():
+    """确保必要的目录结构存在"""
+    dirs = [
+        PROJECT_ROOT / "logs",
+        PROJECT_ROOT / "resource",
+        PROJECT_ROOT / "database",
+        PROJECT_ROOT / "plugins",
+        PROJECT_ROOT / "web" / "templates",
+        PROJECT_ROOT / "web" / "static"
+    ]
+    
+    for directory in dirs:
+        if not directory.exists():
+            logger.warning(f"创建目录: {directory}")
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"创建目录失败 {directory}: {e}")
 
 # 创建FastAPI应用
 app = FastAPI(title="XBotV2 Web管理",
@@ -113,16 +131,16 @@ def get_config():
 security = HTTPBasic()
 
 def get_current_username(request: Request):
-    """从会话中获取当前用户名，如未认证则重定向到登录页"""
-    authenticated = request.session.get("authenticated", False)
-    if not authenticated:
-        logger.warning("用户未认证，重定向到登录页")
+    """获取当前用户名，如果未登录则重定向到登录页面"""
+    username = request.session.get("username")
+    if not username:
+        # 返回401状态码，前端可以捕获并处理
         raise HTTPException(
-            status_code=303,
-            detail="Not authenticated",
-            headers={"Location": "/login"}
+            status_code=401,
+            detail="未认证",
+            headers={"WWW-Authenticate": "Basic"},
         )
-    return request.session.get("username", "anonymous")
+    return username
 
 # 检查机器人是否运行
 def is_robot_running():
@@ -172,6 +190,15 @@ def get_plugins():
     try:
         plugins = []
         plugins_dir = Path(BASE_DIR) / "plugins"
+        
+        if not plugins_dir.exists():
+            logger.warning(f"插件目录不存在: {plugins_dir}")
+            # 创建插件目录
+            try:
+                os.makedirs(plugins_dir, exist_ok=True)
+                logger.info(f"已创建插件目录: {plugins_dir}")
+            except Exception as e:
+                logger.error(f"创建插件目录失败: {e}")
         
         if plugins_dir.exists() and plugins_dir.is_dir():
             for plugin_dir in plugins_dir.iterdir():
@@ -684,133 +711,51 @@ def get_qrcode_from_logs():
     
     log_files = []
     
-    # 记录搜索目录
-    search_info = "搜索日志目录: "
+    # 检查各个可能的日志目录
     for log_dir in possible_log_dirs:
-        search_info += f"{str(log_dir)}, "
-    logger.info(search_info)
-    
-    # 在各个可能的目录中查找日志文件
-    for logs_dir in possible_log_dirs:
-        if not logs_dir.exists():
-            logger.info(f"日志目录不存在: {logs_dir}")
-            continue
-        
-        # 查找多种可能的日志文件名模式
-        patterns = ["XYBot_*.log", "*.log", "xbot*.log", "bot*.log", "weixin*.log", "wechat*.log"]
-        for pattern in patterns:
-            pattern_files = list(logs_dir.glob(pattern))
-            if pattern_files:
-                logger.info(f"在 {logs_dir} 中找到 {len(pattern_files)} 个匹配 {pattern} 的日志文件")
-                log_files.extend(pattern_files)
-    
-    # 如果找不到日志文件，尝试递归查找
-    if not log_files:
-        logger.info("未找到日志文件，尝试递归查找")
-        for logs_dir in possible_log_dirs:
-            if logs_dir.exists():
-                for root, _, files in os.walk(logs_dir):
-                    root_path = Path(root)
-                    for file in files:
-                        if file.endswith('.log'):
-                            log_files.append(root_path / file)
-    
-    # 按修改时间排序
-    log_files = sorted(log_files, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True)
+        if log_dir.exists() and log_dir.is_dir():
+            logger.info(f"搜索日志目录: {log_dir}")
+            # 获取该目录下所有.log文件
+            files = list(log_dir.glob("*.log"))
+            if files:
+                log_files.extend(files)
+                logger.info(f"在 {log_dir} 发现 {len(files)} 个日志文件")
     
     if not log_files:
         logger.warning("未找到任何日志文件")
         return None
     
-    # 记录找到的日志文件
-    files_info = "找到的日志文件: "
-    for log_file in log_files[:5]:  # 只显示前5个
-        files_info += f"{log_file.name} ({log_file.stat().st_size} bytes), "
-    logger.info(files_info)
+    # 按修改时间排序，最新的优先
+    log_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     
-    # 遍历所有日志文件，按照最新的优先
-    for latest_log in log_files:
-        if not latest_log.exists() or latest_log.stat().st_size == 0:
-            continue
-            
-        logger.info(f"尝试从 {latest_log} 中读取二维码")
-        qrcode_url = None
-        
-        # 从日志文件中查找包含二维码URL的行
+    if log_files:
+        logger.info(f"共找到 {len(log_files)} 个日志文件，按修改时间排序")
+    else:
+        logger.warning("没有找到任何日志文件")
+        return None
+    
+    # 从最新的日志文件开始查找二维码URL
+    qr_pattern = re.compile(r'(https?://[^\s]+\.png|https?://[^\s]+weixin[^\s]+)')
+    
+    for log_file in log_files[:5]:  # 只检查最新的5个文件
         try:
-            # 首先尝试读取文件末尾的内容（更高效）
-            lines = []
-            file_size = latest_log.stat().st_size
-            read_size = min(file_size, 50 * 1024)  # 最多读取最后50KB
+            logger.info(f"检查日志文件: {log_file}")
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
             
-            with open(latest_log, "rb") as f:
-                if file_size > read_size:
-                    f.seek(file_size - read_size)
-                chunk = f.read().decode('utf-8', errors='ignore')
-                lines = chunk.splitlines()
-            
-            # 如果未找到，则读取整个文件
-            if not lines or (len(lines) == 1 and not lines[0].strip()):
-                with open(latest_log, "r", encoding="utf-8", errors='ignore') as f:
-                    lines = f.readlines()
-            
-            # 倒序查找，因为最新的登录二维码应该在日志文件的后面
+            # 倒序查找，最新的日志条目在文件末尾
             for line in reversed(lines):
-                # 记录处理的行
-                line_preview = line[:100] + "..." if len(line) > 100 else line
-                logger.debug(f"处理日志行: {line_preview}")
-                
-                # 标准的微信二维码链接
-                if "https://login.weixin.qq.com/qrcode/" in line or "https://long.open.weixin.qq.com/" in line:
-                    # 提取URL
-                    start_index = line.find("https://")
-                    if start_index != -1:
-                        end_index = line.find(" ", start_index)
-                        if end_index == -1:
-                            end_index = len(line)
-                        qrcode_url = line[start_index:end_index].strip()
-                        logger.info(f"找到标准微信二维码链接: {qrcode_url}")
-                        break
-                
-                # 新的格式: "获取到登录二维码: https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/"
-                elif "获取到登录二维码:" in line or "获取到登录二维码" in line:
-                    # 提取URL
-                    parts = line.split("获取到登录二维码:")
-                    if len(parts) == 1:  # 处理可能的空格或其他分隔符
-                        parts = line.split("获取到登录二维码")
-                    
-                    if len(parts) > 1:
-                        url_part = parts[1].strip()
-                        
-                        # 判断是否是生成二维码的API链接
-                        if "url=" in url_part:
-                            # 提取实际的微信登录URL
-                            wx_url_start = url_part.find("url=") + 4
-                            wx_url = url_part[wx_url_start:].strip()
-                            qrcode_url = wx_url
-                        else:
-                            qrcode_url = url_part
-                        
-                        logger.info(f"找到新格式微信二维码链接: {qrcode_url}")
-                        break
-                
-                # 其他可能的格式，如直接包含微信链接
-                elif "weixin.qq.com/x/" in line or "wx.qq.com" in line:
-                    # 尝试提取微信URL
-                    match = re.search(r'https?://(?:weixin|wx)\.qq\.com/[^\s"\']+', line)
+                if "二维码" in line or "qrcode" in line.lower() or "weixin" in line.lower() or ".png" in line:
+                    match = qr_pattern.search(line)
                     if match:
-                        qrcode_url = match.group(0)
-                        logger.info(f"找到微信域名二维码链接: {qrcode_url}")
-                        break
-            
-            if qrcode_url:
-                return qrcode_url
-                
+                        qr_url = match.group(0)
+                        logger.info(f"在日志中找到二维码URL: {qr_url[:30]}...")
+                        return qr_url
         except Exception as e:
-            logger.error(f"读取日志文件 {latest_log} 失败: {e}")
-            logger.error(traceback.format_exc())
+            logger.error(f"读取日志文件 {log_file} 时出错: {e}")
+            continue
     
-    logger.warning("在所有日志文件中都未找到二维码URL")
+    logger.warning("在所有日志文件中未找到二维码URL")
     return None
 
 # 获取最近日志内容
@@ -1135,25 +1080,17 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
         plugins_info = []
         plugins_dir = Path(BASE_DIR) / "plugins"
         
+        if not plugins_dir.exists():
+            logger.warning(f"插件目录不存在: {plugins_dir}")
+            # 创建插件目录
+            try:
+                os.makedirs(plugins_dir, exist_ok=True)
+                logger.info(f"已创建插件目录: {plugins_dir}")
+            except Exception as e:
+                logger.error(f"创建插件目录失败: {e}")
+        
         if plugins_dir.exists() and plugins_dir.is_dir():
             for plugin_dir in plugins_dir.iterdir():
-                if plugin_dir.is_dir() and (plugin_dir / "__init__.py").exists():
-                    plugin_name = plugin_dir.name
-                    plugin_info = {
-                        "name": plugin_name,
-                        "status": "已安装",  # 默认状态
-                        "version": "未知",
-                        "description": "无描述信息"
-                    }
-                    
-                    # 尝试读取插件的 info.json 文件获取更多信息
-                    info_file = plugin_dir / "info.json"
-                    if info_file.exists():
-                        try:
-                            with open(info_file, "r", encoding="utf-8") as f:
-                                info_data = json.load(f)
-                                plugin_info.update(info_data)
-                        except Exception as e:
                             logger.error(f"读取插件 {plugin_name} 的信息出错: {e}")
                     
                     plugins_info.append(plugin_info)
@@ -1241,17 +1178,17 @@ async def get_status_api(username: str = Depends(get_current_username)):
         
         # 获取Redis连接状态
         try:
-            # 检查是否已加载需要的模块
-            MODULES_LOADED = True
+            # 检查是否可以使用socket模块
+            has_socket = True
             try:
                 import socket
             except ImportError:
-                MODULES_LOADED = False
+                has_socket = False
             
             # 使用socket尝试连接Redis
             redis_running = False
-            redis_error = "未检测到Redis库"
-            if MODULES_LOADED:
+            redis_error = "未检测到Socket库"
+            if has_socket:
                 # 尝试简单检查Redis连接
                 redis_host = config.get("WechatAPIServer", {}).get("redis-host", "127.0.0.1")
                 redis_port = config.get("WechatAPIServer", {}).get("redis-port", 6379)
@@ -1264,7 +1201,8 @@ async def get_status_api(username: str = Depends(get_current_username)):
                     redis_error = None
                 except Exception as e:
                     redis_running = False
-                    redis_error = f"Redis连接失败: {str(e)}"
+                    redis_error = f"无法连接到Redis服务器: {redis_host}:{redis_port} - {str(e)}"
+                    logger.warning(f"Redis连接失败: {redis_error}")
                 finally:
                     s.close()
         except Exception as e:
@@ -2070,9 +2008,13 @@ async def add_plugin_rating_api(
 # 在应用启动时初始化插件仓库
 @app.on_event("startup")
 async def startup_plugin_repository():
-    """在应用启动时初始化插件仓库"""
+    """启动时初始化插件仓库"""
+    # 确保所有必要目录存在
+    ensure_directories()
+    
     try:
-        # 初始化插件仓库
+        from database.plugin_repository import init_plugin_repository
+        logger.info("初始化插件仓库...")
         init_plugin_repository()
         logger.info("插件仓库初始化完成")
     except Exception as e:
