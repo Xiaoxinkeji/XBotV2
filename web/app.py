@@ -139,11 +139,16 @@ def send_pushplus_notification(title, content, template="html"):
         if not notify_config.get("enable", False):
             logger.debug("状态通知功能未启用")
             return False
-            
-        pushplus_token = notify_config.get("pushplus-token", "")
-        if not pushplus_token:
+        
+        # 更严格地检查PushPlus token
+        pushplus_token = notify_config.get("pushplus-token")
+        if pushplus_token is None or pushplus_token.strip() == "":
             logger.warning("未配置PushPlus token，无法发送通知")
             return False
+        
+        # 移除可能的空白字符
+        pushplus_token = pushplus_token.strip()
+        logger.debug(f"使用PushPlus发送通知: {title}")
         
         # 构建请求
         url = "http://www.pushplus.plus/send"
@@ -156,22 +161,28 @@ def send_pushplus_notification(title, content, template="html"):
         
         # 发送通知
         logger.info(f"正在发送PushPlus通知: {title}")
-        response = requests.post(url, json=data, timeout=10)
         
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("code") == 200:
-                logger.info(f"PushPlus通知发送成功，消息ID: {result.get('data', '')}")
-                return True
+        try:
+            response = requests.post(url, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("code") == 200:
+                    logger.info(f"PushPlus通知发送成功，消息ID: {result.get('data', '')}")
+                    return True
+                else:
+                    logger.warning(f"PushPlus通知发送失败: {result.get('msg', '未知错误')}")
+                    return False
             else:
-                logger.warning(f"PushPlus通知发送失败: {result.get('msg', '未知错误')}")
+                logger.warning(f"PushPlus通知请求失败，状态码: {response.status_code}")
                 return False
-        else:
-            logger.warning(f"PushPlus通知请求失败，状态码: {response.status_code}")
+        except requests.RequestException as e:
+            logger.error(f"PushPlus网络请求异常: {e}")
             return False
     
     except Exception as e:
         logger.error(f"发送PushPlus通知时出错: {e}")
+        logger.error(traceback.format_exc())
         return False
 
 def check_robot_status_change(robot_status):
@@ -184,20 +195,31 @@ def check_robot_status_change(robot_status):
     global last_robot_status
     
     try:
+        # 先检查配置中是否启用了通知功能
         notify_config = config.get("Notification", {})
         if not notify_config.get("enable", False):
+            logger.debug("状态通知功能未启用")
             return
         
         current_online = robot_status.get("online", False)
+        # 防止last_robot_status未初始化
+        if not isinstance(last_robot_status, dict):
+            last_robot_status = {"online": False, "last_check_time": 0}
+            
         last_online = last_robot_status.get("online", False)
         current_time = datetime.now().timestamp()
         last_check_time = last_robot_status.get("last_check_time", 0)
+        
+        # 记录状态检查
+        logger.debug(f"检查机器人状态: 当前状态={current_online}, 上次状态={last_online}")
         
         # 检查状态是否变化
         status_changed = current_online != last_online
         
         # 状态变化后发送通知
         if status_changed:
+            logger.info(f"检测到机器人状态变化: {last_online} -> {current_online}")
+            
             # 获取系统信息
             hostname = socket.gethostname()
             system_info = f"{platform.system()} {platform.version()}"
@@ -207,7 +229,12 @@ def check_robot_status_change(robot_status):
             if current_online:
                 # 上线通知
                 if notify_config.get("notify-online", True):
-                    title = notify_config.get("online-title", "机器人已上线")
+                    # 改进通知标题获取逻辑，确保值不为None
+                    title = notify_config.get("online-title")
+                    if title is None or title == "":
+                        title = "机器人已上线"
+                    
+                    logger.info(f"发送上线通知: {title}")
                     content = f"""
                     <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
                         <h3 style="color: #28a745;">✅ 机器人已上线</h3>
@@ -218,11 +245,17 @@ def check_robot_status_change(robot_status):
                         <p><strong>活跃插件:</strong> {robot_status.get("plugin_count", 0)}个</p>
                     </div>
                     """
-                    send_pushplus_notification(title, content)
+                    result = send_pushplus_notification(title, content)
+                    logger.info(f"上线通知发送结果: {'成功' if result else '失败'}")
             else:
                 # 掉线通知
                 if notify_config.get("notify-offline", True):
-                    title = notify_config.get("offline-title", "机器人已掉线")
+                    # 改进通知标题获取逻辑，确保值不为None
+                    title = notify_config.get("offline-title")
+                    if title is None or title == "":
+                        title = "机器人已掉线"
+                    
+                    logger.info(f"发送掉线通知: {title}")
                     content = f"""
                     <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
                         <h3 style="color: #dc3545;">❌ 机器人已掉线</h3>
@@ -232,7 +265,8 @@ def check_robot_status_change(robot_status):
                         <p><strong>掉线时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
                     </div>
                     """
-                    send_pushplus_notification(title, content)
+                    result = send_pushplus_notification(title, content)
+                    logger.info(f"掉线通知发送结果: {'成功' if result else '失败'}")
         
         # 更新状态记录
         last_robot_status = {
@@ -246,6 +280,7 @@ def check_robot_status_change(robot_status):
     
     except Exception as e:
         logger.error(f"检查机器人状态变化时出错: {e}")
+        logger.error(traceback.format_exc())
 
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
     if auth_enabled:
@@ -1260,6 +1295,43 @@ async def get_status_api(username: str = Depends(get_current_username)):
             "uptime": int(time.time() - psutil.boot_time())
         }
         
+        # 获取Redis连接状态
+        try:
+            # 检查是否已加载需要的模块
+            MODULES_LOADED = True
+            try:
+                import socket
+            except ImportError:
+                MODULES_LOADED = False
+            
+            # 使用socket尝试连接Redis
+            redis_running = False
+            redis_error = "未检测到Redis库"
+            if MODULES_LOADED:
+                # 尝试简单检查Redis连接
+                redis_host = config.get("WechatAPIServer", {}).get("redis-host", "127.0.0.1")
+                redis_port = config.get("WechatAPIServer", {}).get("redis-port", 6379)
+                
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1)
+                try:
+                    s.connect((redis_host, redis_port))
+                    redis_running = True
+                    redis_error = None
+                except Exception as e:
+                    redis_running = False
+                    redis_error = f"Redis连接失败: {str(e)}"
+                finally:
+                    s.close()
+        except Exception as e:
+            redis_running = False
+            redis_error = f"检查Redis状态时出错: {str(e)}"
+        
+        system_info["redis"] = {
+            "running": redis_running,
+            "error": redis_error
+        }
+        
         # 获取插件信息
         plugins = get_plugins()
         enabled_plugins = [p for p in plugins if p['enabled']]
@@ -1278,7 +1350,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
             "login_time": get_login_time()
         }
         
-        # 添加头像URL
+        # 尝试添加头像URL
         try:
             profile_path = PROJECT_ROOT / "resource" / "profile.json"
             if os.path.exists(profile_path):
@@ -1295,20 +1367,24 @@ async def get_status_api(username: str = Depends(get_current_username)):
         # 检查机器人状态变化，触发通知
         check_robot_status_change(robot_status)
         
-        # 构建响应数据
-        response_data = {
+        # 返回完整状态信息
+        return {
             "robot": robot_status,
             "system": system_info,
             "plugins": plugin_info,
             "user": user_info,
             "messages": message_stats
         }
-        
-        return response_data
     except Exception as e:
-        logger.error(f"获取状态API时出错: {e}")
+        logger.error(f"获取状态信息时出错: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "robot": {"online": False, "error": str(e)},
+            "system": {"error": "获取系统信息失败"},
+            "plugins": {"total": 0, "enabled": 0, "disabled": 0},
+            "user": {"wxid": "", "nickname": "未登录", "alias": ""},
+            "messages": {"total": 0, "today": 0}
+        }
 
 @app.get("/api/plugins")
 async def get_plugins_api(username: str = Depends(get_current_username)):
@@ -1695,39 +1771,8 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
                 for key, value in settings.items():
                     current_config[section][key] = value
             else:
-                # 处理顶级配置项，如通知设置
+                # 处理顶级配置项
                 current_config[section] = settings
-        
-        # 特殊处理通知设置 - 确保它们被放在正确的部分
-        notification_keys = [
-            'notification-enabled', 'pushplus-token', 
-            'notify-offline', 'notify-online',
-            'online-title', 'offline-title'
-        ]
-        
-        # 如果配置中有通知相关设置，确保Notification部分存在
-        if any(key in config_data for key in notification_keys):
-            if 'Notification' not in current_config:
-                current_config['Notification'] = {}
-            
-            # 将通知设置移动到Notification部分
-            if 'notification-enabled' in config_data:
-                current_config['Notification']['enable'] = config_data['notification-enabled']
-            
-            if 'pushplus-token' in config_data:
-                current_config['Notification']['pushplus-token'] = config_data['pushplus-token']
-            
-            if 'notify-offline' in config_data:
-                current_config['Notification']['notify-offline'] = config_data['notify-offline']
-            
-            if 'notify-online' in config_data:
-                current_config['Notification']['notify-online'] = config_data['notify-online']
-                
-            if 'online-title' in config_data:
-                current_config['Notification']['online-title'] = config_data['online-title']
-                
-            if 'offline-title' in config_data:
-                current_config['Notification']['offline-title'] = config_data['offline-title']
         
         # 保存配置 - 使用toml库而不是tomllib
         with open(config_path, "w", encoding="utf-8") as f:

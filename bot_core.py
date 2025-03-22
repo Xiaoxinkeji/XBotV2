@@ -56,8 +56,38 @@ async def bot_core():
         logger.error("WechatAPI服务启动超时")
         return
 
-    if not await bot.check_database():
-        logger.error("Redis连接失败，请检查Redis是否在运行中，Redis的配置")
+    # 检查Redis连接
+    redis_status = await bot.check_database()
+    if not redis_status:
+        logger.error("Redis连接失败，请检查以下配置:")
+        logger.error(f"  - Redis主机: {redis_host}")
+        logger.error(f"  - Redis端口: {redis_port}")
+        logger.error(f"  - Redis密码: {'已设置' if api_config.get('redis-password') else '未设置'}")
+        logger.error(f"  - Redis数据库: {api_config.get('redis-db', 0)}")
+        logger.error("请确保Redis服务已经启动并可以正常连接。")
+        
+        # 添加更详细的错误处理和恢复建议
+        if redis_host == "127.0.0.1" or redis_host == "localhost":
+            logger.error("本地Redis连接失败，请尝试以下操作:")
+            logger.error("  1. 确认Redis服务是否已安装并运行")
+            logger.error("  2. Windows下可在命令行执行: redis-server")
+            logger.error("  3. Linux下可执行: sudo service redis-server start 或 sudo systemctl start redis")
+        else:
+            logger.error("远程Redis连接失败，请尝试以下操作:")
+            logger.error("  1. 检查服务器防火墙是否允许 Redis 端口 (默认6379) 的连接")
+            logger.error("  2. 确认Redis配置是否允许远程连接 (bind配置项)")
+            logger.error("  3. 验证Redis密码是否正确")
+        
+        if os.path.exists("/etc/redis/redis.conf"):
+            logger.error("检测到Redis配置文件，请确认绑定地址和密码设置是否正确")
+        
+        # Docker环境处理
+        if os.path.exists("/.dockerenv") or os.environ.get("DOCKER_CONTAINER"):
+            logger.error("在Docker环境中，请检查容器网络和Redis容器状态:")
+            logger.error("  1. 执行 'docker ps' 查看Redis容器是否正常运行")
+            logger.error("  2. 确认Docker网络配置允许容器间通信")
+            logger.error("  3. 如果使用docker-compose，检查docker-compose.yml中的网络配置")
+        
         return
 
     logger.success("WechatAPI服务已启动")
