@@ -361,17 +361,115 @@ def ensure_directories():
             
     return True
 
-# 创建FastAPI应用
-app = FastAPI(title="XBotV2 Web管理",
-              description="XBotV2微信机器人的Web管理界面",
-              version="1.0")
+# 创建FastAPI应用实例
+app = FastAPI(
+    title="XBotV2", 
+    description="微信机器人Web管理界面", 
+    version="1.0.0",
+    docs_url=None if not DEBUG else "/docs",
+    redoc_url=None if not DEBUG else "/redoc",
+)
+
+# 会话密钥
+SESSION_SECRET_KEY = secrets.token_urlsafe(32)
+# 如果需要持久密钥，可以从配置中加载或存储到文件中
+try:
+    session_key_file = os.path.join(BASE_DIR, "resource", "session_key.txt")
+    if os.path.exists(session_key_file):
+        with open(session_key_file, "r") as f:
+            SESSION_SECRET_KEY = f.read().strip()
+    else:
+        # 创建目录(如果不存在)
+        os.makedirs(os.path.dirname(session_key_file), exist_ok=True)
+        # 保存密钥到文件
+        with open(session_key_file, "w") as f:
+            f.write(SESSION_SECRET_KEY)
+except Exception as e:
+    logger.warning(f"处理会话密钥文件时出错: {e}，使用内存中的随机密钥")
+
+# 添加异常处理程序
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """处理HTTP异常，如果是认证错误则重定向到登录页面"""
+    if exc.status_code == 401:
+        # 对于API路由返回JSON响应
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail, "success": False}
+            )
+        # 对于页面路由重定向到登录页面
+        return RedirectResponse(url=f"/login?message={exc.detail}", status_code=303)
+    
+    # 处理其他HTTP异常
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "success": False}
+        )
+    
+    # 尝试获取用户名（如果已登录）
+    admin_name = None
+    try:
+        if hasattr(request, "session") and "username" in request.session:
+            admin_name = request.session.get("username")
+    except Exception:
+        pass
+    
+    # 为非API请求返回友好的错误页面
+    return templates.TemplateResponse(
+        "error.html", 
+        {
+            "request": request, 
+            "status_code": exc.status_code, 
+            "error": f"错误 {exc.status_code}", 
+            "message": exc.detail,
+            "admin_name": admin_name
+        },
+        status_code=exc.status_code
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """处理所有其他异常"""
+    # 记录异常
+    logger.error(f"未处理的异常: {exc}")
+    logger.error(traceback.format_exc())
+    
+    # 对于API路由
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "内部服务器错误", "message": str(exc), "success": False}
+        )
+    
+    # 尝试获取用户名（如果已登录）
+    admin_name = None
+    try:
+        if hasattr(request, "session") and "username" in request.session:
+            admin_name = request.session.get("username")
+    except Exception:
+        pass
+    
+    # 对于常规页面请求
+    return templates.TemplateResponse(
+        "error.html", 
+        {
+            "request": request, 
+            "status_code": 500, 
+            "error": "内部服务器错误", 
+            "message": str(exc),
+            "error_details": traceback.format_exc() if DEBUG else None,
+            "admin_name": admin_name
+        },
+        status_code=500
+    )
 
 # 添加会话中间件
 app.add_middleware(
     SessionMiddleware, 
-    secret_key=secrets.token_urlsafe(32),  # 使用随机生成的密钥
-    session_cookie="xbotv2_session",
-    max_age=3600  # 会话有效期1小时
+    secret_key=SESSION_SECRET_KEY,
+    max_age=86400,  # 会话有效期24小时
 )
 
 # 确保目录结构存在
@@ -640,15 +738,45 @@ security = HTTPBasic()
 
 def get_current_username(request: Request):
     """获取当前用户名，如果未登录则重定向到登录页面"""
-    username = request.session.get("username")
-    if not username:
-        # 返回401状态码，前端可以捕获并处理
+    try:
+        # 检查session是否存在
+        if not hasattr(request, "session"):
+            logger.error("请求对象没有session属性")
+            raise HTTPException(
+                status_code=401,
+                detail="会话无效",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+            
+        username = request.session.get("username")
+        authenticated = request.session.get("authenticated", False)
+        
+        if not username or not authenticated:
+            # 记录未认证的请求
+            remote_addr = request.client.host if hasattr(request, "client") and hasattr(request.client, "host") else "unknown"
+            logger.warning(f"未认证的请求尝试访问受保护的路由，来源IP：{remote_addr}")
+            
+            # 返回401状态码，前端可以捕获并处理
+            raise HTTPException(
+                status_code=401,
+                detail="未认证，请先登录",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        
+        return username
+    except HTTPException:
+        # 重新抛出HTTP异常以便FastAPI处理
+        raise
+    except Exception as e:
+        # 处理任何其他异常
+        logger.error(f"获取当前用户名时出错: {e}")
+        logger.error(traceback.format_exc())
+        
+        # 返回通用错误
         raise HTTPException(
-            status_code=401,
-            detail="未认证",
-            headers={"WWW-Authenticate": "Basic"},
+            status_code=500,
+            detail=f"内部服务器错误: {str(e)}",
         )
-    return username
 
 @app.post("/auth")
 async def authenticate(request: Request, 
@@ -1613,7 +1741,8 @@ async def home(request: Request, username: str = Depends(get_current_username)):
             "robot": robot_status,
             "system": system_info,
             "logs": recent_logs,
-            "config": config
+            "config": config,
+            "admin_name": username
         })
     except Exception as e:
         logger.error(f"渲染首页出错: {e}")
@@ -1624,7 +1753,8 @@ async def home(request: Request, username: str = Depends(get_current_username)):
             "robot": {"status": "未知", "error": str(e)},
             "system": {"error": str(e)},
             "logs": [],
-            "config": {}
+            "config": {},
+            "admin_name": username
         })
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1718,7 +1848,8 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
         logger.info(f"渲染插件页面，共{len(plugins_info)}个插件")
         return templates.TemplateResponse("plugins.html", {
             "request": request, 
-            "plugins": plugins_info
+            "plugins": plugins_info,
+            "admin_name": username
         })
     except Exception as e:
         logger.error(f"渲染插件页面出错: {e}")
@@ -1727,7 +1858,8 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
         return templates.TemplateResponse("plugins.html", {
             "request": request, 
             "plugins": [],
-            "error": str(e)
+            "error": str(e),
+            "admin_name": username
         })
 
 @app.get("/logs", response_class=HTMLResponse)
@@ -1751,7 +1883,8 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
         logger.info(f"渲染日志页面，共{len(formatted_logs)}条日志")
         return templates.TemplateResponse("logs.html", {
             "request": request, 
-            "logs": formatted_logs
+            "logs": formatted_logs,
+            "admin_name": username
         })
     except Exception as e:
         logger.error(f"渲染日志页面出错: {e}")
@@ -1764,15 +1897,41 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
                  "level": "ERROR", 
                  "message": f"加载日志时出错: {str(e)}"}
             ],
-            "error": str(e)
+            "error": str(e),
+            "admin_name": username
         })
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, username: str = Depends(get_current_username)):
     """系统设置页面"""
-    with open(config_path, "rb") as f:
-        system_config = tomli.load(f)
-    return templates.TemplateResponse("settings.html", {"request": request, "config": system_config})
+    try:
+        # 使用通用的配置读取函数
+        system_config = get_config()
+        if not system_config:
+            logger.error("获取配置失败")
+            system_config = {}
+        
+        logger.info("渲染设置页面")
+        return templates.TemplateResponse(
+            "settings.html", 
+            {
+                "request": request, 
+                "config": system_config,
+                "admin_name": username
+            }
+        )
+    except Exception as e:
+        logger.error(f"渲染设置页面出错: {e}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "settings.html", 
+            {
+                "request": request, 
+                "config": {},
+                "error": str(e),
+                "admin_name": username
+            }
+        )
 
 @app.get("/logout")
 async def logout(request: Request):
@@ -2826,12 +2985,6 @@ async def get_messages_api(
     except Exception as e:
         logger.error(f"获取消息失败: {e}")
         logger.error(traceback.format_exc())
-        return {"success": False, "message": f"获取消息失败: {str(e)}"}
-
-@app.get("/logout2")
-@app.get("/logout3")
-async def logout_alt(request: Request):
-    """兼容性路由，重定向到主登出路由"""
     return await logout(request)
 
 # 获取日志
