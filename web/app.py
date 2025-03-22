@@ -25,6 +25,9 @@ from typing import Dict, List, Optional, Any, Union
 import re
 import math
 
+# 配置logger
+logger = logging
+
 # 获取目录结构
 FILE_DIR = os.path.dirname(os.path.abspath(__file__))
 
