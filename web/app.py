@@ -23,31 +23,99 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 import re
+import math
+
+# 改进目录结构检测
+try:
+    # 获取当前文件所在目录
+    FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+    # 检测项目根目录
+    # 1. 如果当前在web子目录中
+    if os.path.basename(FILE_DIR) == "web":
+        BASE_DIR = os.path.dirname(FILE_DIR)
+    # 2. 如果当前直接在项目根目录
+    else:
+        BASE_DIR = FILE_DIR
+    
+    # 增加一个健壮性检查 - 验证是否真的是项目根目录
+    # 通过检查几个关键文件/目录来判断
+    if not (os.path.exists(os.path.join(BASE_DIR, "main.py")) or 
+            os.path.exists(os.path.join(BASE_DIR, "main_config.toml")) or
+            os.path.exists(os.path.join(BASE_DIR, "utils"))):
+        # 尝试再往上一级查找
+        potential_base = os.path.dirname(BASE_DIR)
+        if (os.path.exists(os.path.join(potential_base, "main.py")) or 
+            os.path.exists(os.path.join(potential_base, "main_config.toml")) or
+            os.path.exists(os.path.join(potential_base, "utils"))):
+            BASE_DIR = potential_base
+    
+    # 转换为Path对象
+    PROJECT_ROOT = Path(BASE_DIR)
+    
+    # 记录项目根目录信息
+    print(f"项目根目录: {BASE_DIR}")
+except Exception as e:
+    print(f"确定项目根目录时出错: {e}")
+    # 使用当前工作目录作为后备
+    BASE_DIR = os.getcwd()
+    PROJECT_ROOT = Path(BASE_DIR)
+    print(f"使用当前工作目录作为项目根目录: {BASE_DIR}")
 
 # 导入统一的配置工具
-from utils.config_utils import load_toml_config, save_toml_config
+try:
+    sys.path.append(BASE_DIR)
+    from utils.config_utils import load_toml_config, save_toml_config
+except ImportError:
+    print("无法导入config_utils模块，尝试添加路径")
+    sys.path.insert(0, str(PROJECT_ROOT))
+    try:
+        from utils.config_utils import load_toml_config, save_toml_config
+        print("成功导入config_utils模块")
+    except ImportError as e:
+        print(f"导入config_utils失败: {e}")
+        # 定义简单的替代函数
+        def load_toml_config(path):
+            print(f"使用内置的配置读取功能: {path}")
+            if not os.path.exists(path):
+                return {}
+            try:
+                import toml
+                with open(path, "r", encoding="utf-8") as f:
+                    return toml.load(f)
+            except:
+                try:
+                    import tomli
+                    with open(path, "rb") as f:
+                        return tomli.load(f)
+                except:
+                    return {}
+        
+        def save_toml_config(path, data):
+            try:
+                import toml
+                with open(path, "w", encoding="utf-8") as f:
+                    toml.dump(data, f)
+                return True
+            except:
+                return False
 
 # 定义模块加载状态
 MODULES_LOADED = False
 
 # 配置日志
+# 确保logs目录存在
+os.makedirs(os.path.join(BASE_DIR, "logs"), exist_ok=True)
+
 logger = logging.getLogger("web")
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("logs/web.log", encoding="utf-8")
+        logging.FileHandler(os.path.join(BASE_DIR, "logs", "web.log"), encoding="utf-8")
     ]
 )
-
-# 项目根目录
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-logger.info(f"项目根目录: {BASE_DIR}")
-
-# 定义全局使用的配置路径
-config_path = Path(BASE_DIR) / "main_config.toml"
-PROJECT_ROOT = Path(BASE_DIR)
 
 # 机器人上一次状态
 _last_robot_status = {"is_online": False, "last_check_time": 0}
@@ -236,22 +304,62 @@ def get_message_stats():
 # 确保必要的目录存在
 def ensure_directories():
     """确保必要的目录结构存在"""
+    logger.info("开始检查并创建必要的目录结构...")
     dirs = [
         PROJECT_ROOT / "logs",
         PROJECT_ROOT / "resource",
+        PROJECT_ROOT / "resource" / "images",  # 添加图片资源目录
+        PROJECT_ROOT / "resource" / "qrcode",  # 添加二维码目录
         PROJECT_ROOT / "database",
         PROJECT_ROOT / "plugins",
         PROJECT_ROOT / "web" / "templates",
-        PROJECT_ROOT / "web" / "static"
+        PROJECT_ROOT / "web" / "static",
+        PROJECT_ROOT / "web" / "static" / "css",
+        PROJECT_ROOT / "web" / "static" / "js",
+        PROJECT_ROOT / "web" / "static" / "img"
     ]
     
+    created_count = 0
     for directory in dirs:
         if not directory.exists():
-            logger.warning(f"创建目录: {directory}")
+            logger.warning(f"目录不存在，尝试创建: {directory}")
             try:
                 directory.mkdir(parents=True, exist_ok=True)
+                logger.info(f"成功创建目录: {directory}")
+                created_count += 1
             except Exception as e:
                 logger.error(f"创建目录失败 {directory}: {e}")
+                logger.error(traceback.format_exc())
+                
+    if created_count > 0:
+        logger.info(f"共创建了 {created_count} 个目录")
+    else:
+        logger.info("所有必要的目录已经存在")
+    
+    # 确保templates目录中有必要的模板文件
+    template_dir = PROJECT_ROOT / "web" / "templates"
+    if not list(template_dir.glob("*.html")):
+        logger.warning("templates目录为空，可能会导致Web界面无法正常显示")
+    
+    # 确保static目录中有必要的静态文件
+    static_dir = PROJECT_ROOT / "web" / "static"
+    css_dir = static_dir / "css"
+    js_dir = static_dir / "js"
+    if not list(css_dir.glob("*.css")) or not list(js_dir.glob("*.js")):
+        logger.warning("静态文件目录可能缺少必要的CSS或JS文件，可能会影响Web界面的显示和功能")
+    
+    # 检查resource目录中的关键文件
+    resource_dir = PROJECT_ROOT / "resource"
+    if not (resource_dir / "robot_stat.json").exists():
+        try:
+            # 创建一个基本的状态文件
+            with open(resource_dir / "robot_stat.json", "w", encoding="utf-8") as f:
+                json.dump({"status": "offline", "last_update": int(time.time())}, f)
+            logger.info("创建了默认的robot_stat.json文件")
+        except Exception as e:
+            logger.error(f"创建robot_stat.json失败: {e}")
+            
+    return True
 
 # 创建FastAPI应用
 app = FastAPI(title="XBotV2 Web管理",
@@ -266,25 +374,132 @@ app.add_middleware(
     max_age=3600  # 会话有效期1小时
 )
 
-# 模板和静态文件目录
-templates_path = Path(BASE_DIR) / "web" / "templates"
-if not templates_path.exists():
-    logger.warning(f"找不到web/templates目录: {templates_path}")
-    templates_path = Path(BASE_DIR) / "templates"
-    if not templates_path.exists():
-        logger.error(f"找不到templates目录，将创建一个空目录: {templates_path}")
-        os.makedirs(templates_path, exist_ok=True)
-logger.info(f"使用模板目录: {templates_path}")
+# 确保目录结构存在
+ensure_directories()
+
+# 初始化模板和静态文件目录
+def setup_templates_and_static():
+    """初始化模板和静态文件目录"""
+    # 模板目录处理
+    templates_paths = [
+        PROJECT_ROOT / "web" / "templates",  # 标准路径
+        PROJECT_ROOT / "templates",          # 备选路径
+        Path(__file__).parent / "templates", # 相对于当前脚本的路径
+        Path("templates")                    # 相对于工作目录的路径
+    ]
+    
+    templates_path = None
+    for path in templates_paths:
+        if path.exists() and path.is_dir():
+            logger.info(f"找到模板目录: {path}")
+            templates_path = path
+            break
+    
+    if not templates_path:
+        # 创建一个模板目录作为备用
+        logger.error("未找到任何可用的模板目录，创建一个默认目录")
+        templates_path = PROJECT_ROOT / "web" / "templates"
+        templates_path.mkdir(parents=True, exist_ok=True)
+        
+        # 尝试创建一个最小的模板文件以便应用仍能运行
+        try:
+            with open(templates_path / "fallback.html", "w", encoding="utf-8") as f:
+                f.write("""<!DOCTYPE html>
+<html>
+<head>
+    <title>XBotV2 - 系统错误</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        h1 { color: #d9534f; }
+        .info { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>XBotV2 系统错误</h1>
+        <p>模板文件未找到。请确保项目安装正确，并包含所有必要的文件。</p>
+        <div class="info">
+            <p>可能的解决方法:</p>
+            <ul>
+                <li>确保 web/templates 目录存在并包含必要的模板文件</li>
+                <li>检查项目是否完整克隆或下载</li>
+                <li>尝试重新启动应用</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>""")
+            logger.info("已创建一个基本的错误模板文件")
+        except Exception as e:
+            logger.error(f"创建错误模板文件失败: {e}")
+    
+    # 静态文件目录处理
+    static_paths = [
+        PROJECT_ROOT / "web" / "static",  # 标准路径
+        PROJECT_ROOT / "static",          # 备选路径
+        Path(__file__).parent / "static", # 相对于当前脚本的路径
+        Path("static")                    # 相对于工作目录的路径
+    ]
+    
+    static_path = None
+    for path in static_paths:
+        if path.exists() and path.is_dir():
+            logger.info(f"找到静态文件目录: {path}")
+            static_path = path
+            break
+    
+    if not static_path:
+        # 创建一个静态文件目录作为备用
+        logger.error("未找到任何可用的静态文件目录，创建一个默认目录")
+        static_path = PROJECT_ROOT / "web" / "static"
+        css_dir = static_path / "css"
+        js_dir = static_path / "js"
+        
+        static_path.mkdir(parents=True, exist_ok=True)
+        css_dir.mkdir(exist_ok=True)
+        js_dir.mkdir(exist_ok=True)
+        
+        # 创建一个基本的CSS文件
+        try:
+            with open(css_dir / "fallback.css", "w", encoding="utf-8") as f:
+                f.write("""
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+h1, h2, h3 {
+    color: #333;
+}
+.error {
+    color: #d9534f;
+    background-color: #f9f2f2;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+""")
+            logger.info("已创建一个基本的CSS文件")
+        except Exception as e:
+            logger.error(f"创建CSS文件失败: {e}")
+    
+    return templates_path, static_path
+
+# 设置模板和静态文件
+templates_path, static_path = setup_templates_and_static()
 templates = Jinja2Templates(directory=str(templates_path))
 
-static_path = Path(BASE_DIR) / "web" / "static"
-if not static_path.exists():
-    logger.warning(f"找不到web/static目录: {static_path}")
-    static_path = Path(BASE_DIR) / "static"
-    if not static_path.exists():
-        logger.error(f"找不到static目录，将创建一个空目录: {static_path}")
-        os.makedirs(static_path, exist_ok=True)
-logger.info(f"使用静态文件目录: {static_path}")
+# 挂载静态文件目录
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # 获取系统运行时间的辅助函数
@@ -305,48 +520,120 @@ def get_uptime():
 def get_config():
     """获取当前配置"""
     try:
-        config_path = Path(BASE_DIR) / "main_config.toml"
-        logger.info(f"尝试读取配置文件: {config_path}")
-        
-        if not config_path.exists():
-            logger.error(f"配置文件不存在: {config_path}")
-            return {}
-        
-        # 直接读取文件内容用于日志记录
+        # 首先检查是否可以导入config_utils
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                file_content = f.read()
-                logger.debug(f"配置文件内容预览: {file_content[:100]}...")
-        except Exception as read_error:
-            logger.error(f"直接读取配置文件失败: {read_error}")
+            from utils.config_utils import load_toml_config
+        except ImportError:
+            logger.error("无法导入config_utils模块，可能是路径问题")
+            # 尝试直接导入
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            try:
+                from utils.config_utils import load_toml_config
+                logger.info("通过路径调整成功导入config_utils")
+            except ImportError as e:
+                logger.error(f"调整路径后仍无法导入config_utils: {e}")
+                return {
+                    "WebInterface": {
+                        "username": "admin",
+                        "password": "admin123",
+                        "enable": True,
+                        "host": "0.0.0.0",
+                        "port": 8080
+                    }
+                }
         
-        # 使用统一配置工具加载TOML
-        config = load_toml_config(config_path)
+        # 尝试以不同的相对路径查找配置文件
+        config_paths = [
+            Path(BASE_DIR) / "main_config.toml",  # 标准路径
+            Path("main_config.toml"),            # 工作目录
+            Path("..") / "main_config.toml",     # 上级目录
+            Path(__file__).parent.parent / "main_config.toml"  # 相对于脚本的路径
+        ]
+        
+        config = None
+        loaded_path = None
+        
+        for config_path in config_paths:
+            logger.info(f"尝试读取配置文件: {config_path}")
+            if config_path.exists():
+                logger.info(f"找到配置文件: {config_path}")
+                loaded_path = config_path
+                
+                # 直接读取文件内容用于日志记录和调试
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        file_content = f.read()
+                        logger.debug(f"配置文件内容预览: {file_content[:100]}...")
+                except Exception as read_error:
+                    logger.error(f"直接读取配置文件失败: {read_error}")
+                
+                # 使用统一配置工具加载TOML
+                config = load_toml_config(config_path)
+                if config:
+                    logger.info(f"从 {config_path} 成功加载配置")
+                    break
         
         # 检查配置是否正确加载
         if not config:
-            logger.error("配置文件加载失败或为空")
+            logger.error("所有配置文件路径都失败，使用默认配置")
+            config = {
+                "WebInterface": {
+                    "username": "admin",
+                    "password": "admin123",
+                    "enable": True,
+                    "host": "0.0.0.0",
+                    "port": 8080,
+                    "debug": False
+                }
+            }
         else:
-            logger.info(f"配置文件加载成功，包含的部分: {list(config.keys())}")
+            logger.info(f"配置文件 {loaded_path} 加载成功，包含的部分: {list(config.keys())}")
             
-            # 检查WebInterface部分
-            if "WebInterface" in config:
-                web_config = config["WebInterface"]
-                logger.info(f"WebInterface配置: {web_config}")
-                
-                # 检查用户名和密码
-                if "username" in web_config and "password" in web_config:
-                    logger.info(f"找到Web登录凭据，用户名: {web_config['username']}")
-                else:
-                    logger.warning("WebInterface配置中缺少用户名或密码")
+            # 检查并确保WebInterface部分存在且包含必要的值
+            if "WebInterface" not in config:
+                logger.warning("配置文件中缺少WebInterface部分，添加默认值")
+                config["WebInterface"] = {
+                    "username": "admin",
+                    "password": "admin123",
+                    "enable": True,
+                    "host": "0.0.0.0",
+                    "port": 8080,
+                    "debug": False
+                }
             else:
-                logger.warning("配置中未找到WebInterface部分")
+                web_config = config["WebInterface"]
+                # 确保关键配置项存在
+                if "username" not in web_config or not web_config["username"]:
+                    web_config["username"] = "admin"
+                if "password" not in web_config or not web_config["password"]:
+                    web_config["password"] = "admin123"
+                if "enable" not in web_config:
+                    web_config["enable"] = True
+                if "host" not in web_config:
+                    web_config["host"] = "0.0.0.0"
+                if "port" not in web_config:
+                    web_config["port"] = 8080
+                if "debug" not in web_config:
+                    web_config["debug"] = False
         
         return config
+        
     except Exception as e:
-        logger.error(f"读取配置文件出错: {e}")
+        logger.error(f"获取配置时出错: {e}")
         logger.error(traceback.format_exc())
-        return {}
+        # 返回默认配置，确保应用可以继续运行
+        return {
+            "WebInterface": {
+                "username": "admin",
+                "password": "admin123",
+                "enable": True,
+                "host": "0.0.0.0",
+                "port": 8080,
+                "debug": False
+            }
+        }
 
 # 用户认证相关函数
 security = HTTPBasic()
@@ -362,6 +649,73 @@ def get_current_username(request: Request):
             headers={"WWW-Authenticate": "Basic"},
         )
     return username
+
+@app.post("/auth")
+async def authenticate(request: Request, 
+                     username: str = Form(...), 
+                     password: str = Form(...)):
+    """处理登录表单提交"""
+    try:
+        logger.info(f"用户尝试登录: {username}")
+        config = get_config()
+        
+        # 默认凭据，以防配置文件读取失败
+        default_username = "admin"
+        default_password = "admin123"
+        
+        # 从配置中获取用户名和密码
+        if config and "WebInterface" in config:
+            config_username = config["WebInterface"].get("username", default_username)
+            config_password = config["WebInterface"].get("password", default_password)
+        else:
+            logger.warning("无法从配置中读取用户名和密码，使用默认值")
+            config_username = default_username
+            config_password = default_password
+            
+        # 清理输入和配置值
+        username = username.strip()
+        password = password.strip()
+        config_username = config_username.strip()
+        config_password = config_password.strip()
+        
+        # 详细登录日志，不记录完整密码
+        logger.debug(f"输入的用户名: '{username}', 长度: {len(username)}")
+        logger.debug(f"输入的密码长度: {len(password)}")
+        logger.debug(f"配置的用户名: '{config_username}', 长度: {len(config_username)}")
+        logger.debug(f"配置的密码长度: {len(config_password)}")
+        
+        # 检查凭据是否匹配
+        if username == config_username and password == config_password:
+            logger.info(f"用户 {username} 登录成功")
+            # 设置会话
+            request.session["username"] = username
+            request.session["authenticated"] = True
+            request.session["login_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 重定向到首页
+            return RedirectResponse(url="/", status_code=303)
+        else:
+            # 尝试使用默认凭据（如果用户未使用配置中的凭据）
+            if username == default_username and password == default_password and (config_username != default_username or config_password != default_password):
+                logger.warning(f"用户 {username} 使用默认凭据登录成功")
+                # 设置会话
+                request.session["username"] = username
+                request.session["authenticated"] = True
+                request.session["login_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # 重定向到首页，但带有警告消息
+                return RedirectResponse(url="/?message=您使用了默认凭据登录，建议更改密码", status_code=303)
+            
+            logger.warning(f"用户 {username} 登录失败 - 凭据不匹配")
+            if username == config_username:
+                logger.debug("用户名匹配，但密码不匹配")
+            
+            # 登录失败，重定向回登录页面
+            return RedirectResponse(url=f"/login?message=用户名或密码不正确", status_code=303)
+    except Exception as e:
+        logger.error(f"登录处理过程中出错: {e}")
+        logger.error(traceback.format_exc())
+        return RedirectResponse(url=f"/login?message=登录处理出错: {str(e)}", status_code=303)
 
 # 检查机器人是否运行
 def is_robot_running():
@@ -1275,53 +1629,51 @@ async def home(request: Request, username: str = Depends(get_current_username)):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, message: str = None):
-    """登录页面"""
+    """用户登录页面"""
     try:
-        logger.info("渲染登录页面")
+        # 检查用户是否已经登录
+        if "authenticated" in request.session and request.session.get("authenticated", False):
+            # 已登录，重定向到首页
+            return RedirectResponse(url="/", status_code=303)
+        
+        # 未登录，显示登录页面
         return templates.TemplateResponse(
-            "login.html", 
-            {"request": request, "message": message}
+            "user_login.html", 
+            {
+                "request": request,
+                "message": message
+            }
         )
     except Exception as e:
-        logger.error(f"渲染登录页面出错: {e}")
+        logger.error(f"加载登录页面失败: {e}")
         logger.error(traceback.format_exc())
-        # 返回基本的HTML登录表单，确保用户至少能够登录
-        return HTMLResponse(content="""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>登录 - XBotV2</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="stylesheet" href="/static/css/bootstrap.min.css">
-            </head>
-            <body class="bg-light">
-                <div class="container mt-5">
-                    <div class="row justify-content-center">
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header">登录</div>
-                                <div class="card-body">
-                                    <form action="/auth" method="post">
-                                        <div class="mb-3">
-                                            <label for="username" class="form-label">用户名</label>
-                                            <input type="text" class="form-control" id="username" name="username" required>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="password" class="form-label">密码</label>
-                                            <input type="password" class="form-control" id="password" name="password" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-primary">登录</button>
-                                    </form>
-                                    <p class="text-danger mt-3">错误: """ + str(e) + """</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-        """)
+        return HTMLResponse(f"<h1>加载登录页面失败</h1><p>{str(e)}</p>")
+
+@app.get("/wechat_login", response_class=HTMLResponse)
+async def wechat_login_page(request: Request, username: str = Depends(get_current_username)):
+    """微信二维码登录页面"""
+    try:
+        # 获取最新的二维码URL
+        qr_link = ""
+        try:
+            qr_result = get_qrcode_from_logs()
+            if qr_result and qr_result.get("success"):
+                qr_link = qr_result.get("qrcode_url", "")
+        except Exception as qr_error:
+            logger.error(f"获取二维码URL失败: {qr_error}")
+        
+        return templates.TemplateResponse(
+            "login.html", 
+            {
+                "request": request,
+                "qr_link": qr_link,
+                "admin_name": username
+            }
+        )
+    except Exception as e:
+        logger.error(f"渲染微信登录页面出错: {e}")
+        logger.error(traceback.format_exc())
+        return HTMLResponse(f"<h1>加载微信登录页面失败</h1><p>{str(e)}</p>")
 
 @app.get("/plugins", response_class=HTMLResponse)
 async def plugins_page(request: Request, username: str = Depends(get_current_username)):
@@ -1424,41 +1776,24 @@ async def settings_page(request: Request, username: str = Depends(get_current_us
 
 @app.get("/logout")
 async def logout(request: Request):
-    """注销登录"""
+    """处理用户登出请求"""
     try:
         # 清除会话
         request.session.clear()
         logger.info("用户登出成功")
-        response = RedirectResponse(url="/login", status_code=303)
-        response.delete_cookie(key="session")
-        return response
     except Exception as e:
         logger.error(f"登出处理出错: {e}")
+        logger.error(traceback.format_exc())
+    finally:
+        # 无论发生什么错误，都确保重定向到登录页面
         return RedirectResponse(url="/login", status_code=303)
 
+# 为兼容性保留其他登出路由
 @app.get("/logout2")
-async def logout_alt(request: Request):
-    """处理用户登出请求"""
-    try:
-        # 清除会话
-        request.session.clear()
-        logger.info("用户登出成功")
-        return RedirectResponse(url="/login", status_code=303)
-    except Exception as e:
-        logger.error(f"登出处理出错: {e}")
-        return RedirectResponse(url="/login", status_code=303)
-
 @app.get("/logout3")
-async def logout_another(request: Request):
-    """处理用户登出请求"""
-    try:
-        # 清除会话
-        request.session.clear()
-        logger.info("用户登出成功")
-        return RedirectResponse(url="/login", status_code=303)
-    except Exception as e:
-        logger.error(f"登出处理出错: {e}")
-        return RedirectResponse(url="/login", status_code=303)
+async def logout_alt(request: Request):
+    """兼容性路由，重定向到主登出路由"""
+    return await logout(request)
 
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
@@ -2323,16 +2658,65 @@ async def startup_plugin_repository():
 # 主函数
 def start_web_server():
     """启动Web服务器"""
-    # 获取配置
-    config = get_config()
-    web_config = config.get("WebInterface", {})
-    
-    host = web_config.get("host", "0.0.0.0")
-    port = web_config.get("port", 8080)
-    debug = web_config.get("debug", False)
-    
-    logger.info(f"启动Web服务器: {host}:{port}，调试模式: {'开启' if debug else '关闭'}")
-    uvicorn.run("web.app:app", host=host, port=port, reload=debug)
+    try:
+        # 确保目录存在
+        ensure_directories()
+        
+        # 获取配置
+        config = get_config()
+        web_config = config.get("WebInterface", {})
+        
+        host = web_config.get("host", "0.0.0.0")
+        port = web_config.get("port", 8080)
+        debug = web_config.get("debug", False)
+        
+        # 确保port是整数
+        try:
+            port = int(port)
+        except (ValueError, TypeError):
+            logger.warning(f"端口配置格式不正确: {port}，使用默认值8080")
+            port = 8080
+        
+        logger.info(f"启动Web服务器: {host}:{port}，调试模式: {'开启' if debug else '关闭'}")
+        
+        # 记录系统信息
+        import platform
+        import psutil
+        logger.info(f"操作系统: {platform.system()} {platform.release()} {platform.machine()}")
+        logger.info(f"Python版本: {platform.python_version()}")
+        logger.info(f"系统内存: {psutil.virtual_memory().total / (1024*1024*1024):.2f} GB")
+        logger.info(f"CPU信息: {platform.processor()} ({psutil.cpu_count()} 核心)")
+        
+        try:
+            # 记录主要依赖版本
+            import fastapi
+            import uvicorn
+            import jinja2
+            import sqlalchemy
+            import loguru
+            logger.info(f"依赖版本 - FastAPI: {fastapi.__version__}, Uvicorn: {uvicorn.__version__}, Jinja2: {jinja2.__version__}, SQLAlchemy: {sqlalchemy.__version__}")
+        except Exception as dep_error:
+            logger.warning(f"获取依赖版本信息失败: {dep_error}")
+        
+        # 启动服务器
+        try:
+            uvicorn.run("web.app:app", host=host, port=port, reload=debug)
+        except Exception as run_error:
+            logger.error(f"uvicorn.run失败: {run_error}")
+            logger.error(traceback.format_exc())
+            
+            # 尝试备选启动方法
+            import uvicorn.config
+            import asyncio
+            config = uvicorn.config.Config(app=app, host=host, port=port)
+            server = uvicorn.Server(config)
+            logger.info("使用备选方法启动服务器")
+            asyncio.run(server.serve())
+            
+    except Exception as e:
+        logger.error(f"启动Web服务器失败: {e}")
+        logger.error(traceback.format_exc())
+        raise
 
 # 在其他页面路由附近添加以下代码
 @app.get("/plugin_marketplace", response_class=HTMLResponse)
@@ -2355,11 +2739,11 @@ async def get_settings_api(username: str = Depends(get_current_username)):
     """获取系统设置API接口"""
     try:
         # 读取现有配置
-        system_config = load_toml_config(config_path)
-        if not system_config:
+        config = get_config()
+        if not config:
             return {"success": False, "message": "读取配置文件失败"}
         
-        return {"success": True, "data": system_config}
+        return {"success": True, "data": config}
     except Exception as e:
         logger.error(f"获取设置失败: {e}")
         logger.error(traceback.format_exc())
@@ -2374,10 +2758,8 @@ async def get_messages_api(
 ):
     """获取消息列表API接口"""
     try:
-        # 这里实际应该从数据库读取消息记录
-        # 当前为了解决模板缺失错误，我们返回模拟数据
-        
-        # 模拟的消息数据
+        # 获取消息数据
+        # 临时模拟数据，用于前端测试
         mock_messages = [
             {
                 "id": "1",
@@ -2434,130 +2816,23 @@ async def get_messages_api(
         end_idx = start_idx + limit
         page_messages = mock_messages[start_idx:end_idx]
         
-        # 返回数据
         return {
-            "success": True,
             "messages": page_messages,
-            "pagination": {
-                "current_page": current_page,
-                "total_pages": total_pages,
-                "total_records": total_messages,
-                "limit": limit
-            }
+            "total": total_messages,
+            "page": page,
+            "limit": limit,
+            "pages": total_pages
         }
     except Exception as e:
-        logger.error(f"获取消息列表失败: {e}")
+        logger.error(f"获取消息失败: {e}")
         logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "message": f"获取消息列表失败: {str(e)}"
-        }
-
-@app.post("/auth")
-async def authenticate(request: Request, username: str = Form(...), password: str = Form(...)):
-    """处理用户登录请求"""
-    try:
-        # 从配置文件获取用户名和密码进行验证
-        config = get_config()
-        
-        # 添加日志记录来调试配置读取
-        logger.info(f"加载的配置：{str(config.keys())}")
-        
-        # 检查WebInterface部分是否存在
-        if "WebInterface" not in config:
-            logger.error("配置文件中没有找到WebInterface部分")
-            # 从配置文件内容中尝试直接解析
-            admin_username = "admin"
-            admin_password = "admin123"
-        else:
-            web_config = config.get("WebInterface", {})
-            logger.info(f"WebInterface配置：{str(web_config)}")
-            admin_username = web_config.get("username", "admin")
-            admin_password = web_config.get("password", "admin123")
-        
-        # 清理用户名和密码中可能的前后空格
-        input_username = username.strip()
-        input_password = password.strip()
-        config_username = admin_username.strip() if isinstance(admin_username, str) else "admin"
-        config_password = admin_password.strip() if isinstance(admin_password, str) else "admin123"
-        
-        logger.info(f"用户登录尝试: 输入用户名='{input_username}'，配置用户名='{config_username}'")
-        logger.info(f"密码长度比较: 输入密码长度={len(input_password)}，配置密码长度={len(config_password)}")
-        
-        # 详细的比较信息用于调试
-        if input_username != config_username:
-            logger.warning(f"用户名不匹配: 输入='{input_username}'，配置='{config_username}'")
-        
-        if input_password != config_password:
-            logger.warning(f"密码不匹配: 输入密码哈希={hash(input_password)}，配置密码哈希={hash(config_password)}")
-            # 使用repr可以显示字符串中的不可见字符
-            logger.warning(f"密码内容表示: 输入密码={repr(input_password)}，配置密码={repr(config_password)}")
-        
-        # 使用清理后的值进行比较
-        if input_username == config_username and input_password == config_password:
-            # 登录成功，设置会话
-            request.session["authenticated"] = True
-            request.session["username"] = input_username
-            logger.info(f"用户 {input_username} 登录成功")
-            # 重定向到首页
-            return RedirectResponse(url="/", status_code=303)
-        else:
-            # 尝试硬编码值作为备选方案
-            if input_username == "admin" and input_password == "admin123":
-                request.session["authenticated"] = True
-                request.session["username"] = input_username
-                logger.info(f"用户 {input_username} 使用备选凭据登录成功")
-                return RedirectResponse(url="/", status_code=303)
-            
-            # 登录失败
-            logger.warning(f"用户 {input_username} 登录失败: 用户名或密码错误")
-            return templates.TemplateResponse(
-                "login.html", 
-                {"request": request, "message": "用户名或密码错误"}
-            )
-    except Exception as e:
-        logger.error(f"登录处理出错: {e}")
-        logger.error(traceback.format_exc())
-        return templates.TemplateResponse(
-            "login.html", 
-            {"request": request, "message": f"登录处理出错: {str(e)}"}
-        )
-
-@app.get("/logout")
-async def logout(request: Request):
-    """处理用户登出请求"""
-    try:
-        # 清除会话
-        request.session.clear()
-        logger.info("用户登出成功")
-        return RedirectResponse(url="/login", status_code=303)
-    except Exception as e:
-        logger.error(f"登出处理出错: {e}")
-        return RedirectResponse(url="/login", status_code=303)
+        return {"success": False, "message": f"获取消息失败: {str(e)}"}
 
 @app.get("/logout2")
-async def logout_alt(request: Request):
-    """处理用户登出请求"""
-    try:
-        # 清除会话
-        request.session.clear()
-        logger.info("用户登出成功")
-        return RedirectResponse(url="/login", status_code=303)
-    except Exception as e:
-        logger.error(f"登出处理出错: {e}")
-        return RedirectResponse(url="/login", status_code=303)
-
 @app.get("/logout3")
-async def logout_another(request: Request):
-    """处理用户登出请求"""
-    try:
-        # 清除会话
-        request.session.clear()
-        logger.info("用户登出成功")
-        return RedirectResponse(url="/login", status_code=303)
-    except Exception as e:
-        logger.error(f"登出处理出错: {e}")
-        return RedirectResponse(url="/login", status_code=303)
+async def logout_alt(request: Request):
+    """兼容性路由，重定向到主登出路由"""
+    return await logout(request)
 
 # 获取日志
 def get_recent_logs(limit=20):
@@ -2588,8 +2863,8 @@ def get_recent_logs(limit=20):
     except Exception as e:
         logger.error(f"获取日志记录出错: {e}")
         return [{"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                "level": "ERROR", 
-                "message": f"无法读取日志: {str(e)}"}]
+               "level": "ERROR", 
+               "message": f"获取日志失败: {str(e)}"}]
 
 if __name__ == "__main__":
     start_web_server() 

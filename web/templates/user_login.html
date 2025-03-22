@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}用户登录 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card my-5">
+                <div class="card-header">
+                    <h4 class="mb-0">用户登录</h4>
+                </div>
+                <div class="card-body">
+                    {% if message %}
+                    <div class="alert alert-danger">{{ message }}</div>
+                    {% endif %}
+                    
+                    <form method="post" action="/auth">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">用户名</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">登录</button>
+                        </div>
+                        <div class="text-muted mt-3 text-center">
+                            <small>默认用户名: admin，默认密码: admin123</small>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .card-header {
+        background-color: #f8f9fa;
+    }
+    
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+</style>
+{% endblock %}
