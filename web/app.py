@@ -418,7 +418,7 @@ except Exception as e:
 # 添加异常处理程序
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """处理HTTP异常，如果是认证错误则重定向到登录页�?""
+    """处理HTTP异常，如果是认证错误则重定向到登录页面"""
     if exc.status_code == 401:
         # 对于API路由返回JSON响应
         if request.url.path.startswith("/api/"):
@@ -494,11 +494,11 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=500
     )
 
-# 添加会话中间�?
+# 添加会话中间件
 app.add_middleware(
     SessionMiddleware, 
     secret_key=SESSION_SECRET_KEY,
-    max_age=86400,  # 会话有效�?4小时
+    max_age=86400,  # 会话有效期24小时
 )
 
 # 确保目录结构存在
