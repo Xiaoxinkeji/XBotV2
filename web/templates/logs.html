@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}系统日志 - XBotV2{% endblock %}
+
+{% block extra_css %}
+<style>
+    .log-container {
+        height: 600px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+    }
+    .log-table tr td:first-child {
+        width: 120px;
+    }
+    .log-table tr td:nth-child(2) {
+        width: 100px;
+    }
+    .log-level-INFO {
+        color: #0d6efd;
+    }
+    .log-level-WARNING {
+        color: #ffc107;
+    }
+    .log-level-ERROR {
+        color: #dc3545;
+    }
+    .log-level-DEBUG {
+        color: #6c757d;
+    }
+    .log-level-SUCCESS {
+        color: #198754;
+    }
+    .log-level-API {
+        color: #0dcaf0;
+    }
+    .log-search {
+        max-width: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-journal-text me-2"></i>系统日志
+        </h5>
+        <div class="d-flex align-items-center">
+            <input type="text" id="logSearch" class="form-control form-control-sm me-2 log-search" placeholder="搜索日志...">
+            <select id="logLevel" class="form-select form-select-sm me-2">
+                <option value="">所有级别</option>
+                <option value="INFO">信息</option>
+                <option value="WARNING">警告</option>
+                <option value="ERROR">错误</option>
+                <option value="DEBUG">调试</option>
+                <option value="SUCCESS">成功</option>
+                <option value="API">API</option>
+            </select>
+            <button id="refreshLogs" class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-arrow-clockwise"></i>
+                刷新
+            </button>
+            <a href="/api/logs/download" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-download"></i>
+                下载
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="log-container" id="logContainer">
+            <table class="table table-hover mb-0 log-table">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>级别</th>
+                        <th>消息</th>
+                    </tr>
+                </thead>
+                <tbody id="logTableBody">
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.timestamp }}</td>
+                        <td><span class="log-level-{{ log.level }}">{{ log.level }}</span></td>
+                        <td>{{ log.message }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const logSearch = document.getElementById('logSearch');
+        const logLevel = document.getElementById('logLevel');
+        const refreshBtn = document.getElementById('refreshLogs');
+        
+        // 刷新日志
+        refreshBtn.addEventListener('click', function() {
+            fetchLogs();
+        });
+        
+        // 根据级别过滤
+        logLevel.addEventListener('change', function() {
+            filterLogs();
+        });
+        
+        // 搜索过滤
+        logSearch.addEventListener('input', function() {
+            filterLogs();
+        });
+        
+        // 获取日志
+        async function fetchLogs() {
+            try {
+                const response = await fetch(`/api/logs?limit=100&level=${logLevel.value}&search=${logSearch.value}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderLogs(data.logs);
+                } else {
+                    showError('获取日志失败');
+                }
+            } catch (error) {
+                console.error('获取日志出错:', error);
+                showError('获取日志失败');
+            }
+        }
+        
+        // 渲染日志
+        function renderLogs(logs) {
+            const tbody = document.getElementById('logTableBody');
+            tbody.innerHTML = '';
+            
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                
+                const timeCell = document.createElement('td');
+                timeCell.textContent = log.timestamp;
+                
+                const levelCell = document.createElement('td');
+                const levelSpan = document.createElement('span');
+                levelSpan.className = `log-level-${log.level}`;
+                levelSpan.textContent = log.level;
+                levelCell.appendChild(levelSpan);
+                
+                const messageCell = document.createElement('td');
+                messageCell.textContent = log.message;
+                
+                row.appendChild(timeCell);
+                row.appendChild(levelCell);
+                row.appendChild(messageCell);
+                
+                tbody.appendChild(row);
+            });
+            
+            // 滚动到底部
+            const container = document.getElementById('logContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // 客户端过滤日志
+        function filterLogs() {
+            const searchText = logSearch.value.toLowerCase();
+            const levelFilter = logLevel.value;
+            
+            const rows = document.querySelectorAll('#logTableBody tr');
+            
+            rows.forEach(row => {
+                const level = row.querySelector('td:nth-child(2)').textContent;
+                const message = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                
+                const levelMatch = levelFilter === '' || level === levelFilter;
+                const searchMatch = searchText === '' || message.includes(searchText);
+                
+                row.style.display = levelMatch && searchMatch ? '' : 'none';
+            });
+        }
+        
+        // 显示错误
+        function showError(message) {
+            const container = document.getElementById('logContainer');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger m-3';
+            errorDiv.textContent = message;
+            
+            container.innerHTML = '';
+            container.appendChild(errorDiv);
+        }
+        
+        // 自动刷新（每30秒）
+        setInterval(fetchLogs, 30000);
+    });
+</script>
+{% endblock %} 
