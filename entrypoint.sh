@@ -18,6 +18,20 @@ mkdir -p /app/database
 chmod -R 755 /var/log/xbotv2
 chmod -R 755 /app/logs
 
+# 检查关键依赖是否已安装
+echo "Checking for required dependencies..."
+python -c "
+import importlib.util
+for module in ['fastapi', 'uvicorn', 'starlette', 'itsdangerous']:
+    if importlib.util.find_spec(module) is None:
+        print(f'ERROR: Required module {module} is not installed')
+        print(f'Installing missing module {module}...')
+        import subprocess
+        subprocess.check_call(['pip', 'install', module])
+    else:
+        print(f'Module {module} is installed')
+"
+
 # 如果是首次运行，创建样例日志文件
 if [ ! -f "/app/logs/xbotv2.log" ]; then
     echo "Creating sample log file..."

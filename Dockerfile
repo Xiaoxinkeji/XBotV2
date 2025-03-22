@@ -24,7 +24,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # 安装Python依赖
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir itsdangerous>=2.1.2 # 确保安装会话依赖
 
 # 复制其余项目文件
 COPY . .

@@ -30,3 +30,5 @@ toml~=0.10.2
 psutil~=5.9.5
 gitpython~=3.1.40
 httpx~=0.24.1
+# 会话管理依赖
+itsdangerous~=2.1.2
