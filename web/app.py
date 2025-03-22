@@ -428,8 +428,15 @@ async def wechat_login(request: Request, username: str = Depends(get_current_use
         # 获取登录二维码（如果未登录）
         qrcode_url = None
         if not login_status.get("is_logged_in", False):
-            qrcode_data = await client.get_login_qrcode()
-            qrcode_url = qrcode_data.get("qrcode_url", "")
+            try:
+                # 使用正确的方法获取登录二维码
+                device_name = LoginMixin.create_device_name()
+                device_id = LoginMixin.create_device_id()
+                uuid, qrcode_base64 = await client.get_qr_code(device_name, device_id)
+                qrcode_url = f"data:image/png;base64,{qrcode_base64}" if qrcode_base64 else None
+            except Exception as qr_err:
+                logger.error(f"获取登录二维码失败: {str(qr_err)}")
+                qrcode_url = None
         
         return templates.TemplateResponse(
             "wechat_login.html",
@@ -462,21 +469,44 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
     """插件管理页面"""
     try:
         # 获取插件列表
-        # 这里应该调用实际的插件管理器获取插件列表
         plugins = []
+        plugin_error_msg = None
+        
         try:
+            # 导入插件管理器
+            logger.debug("尝试导入插件管理器")
             from utils.plugin_manager import get_plugin_manager
+            
+            # 获取插件管理器实例
+            logger.debug("尝试获取插件管理器实例")
             plugin_manager = get_plugin_manager()
-            plugins = plugin_manager.get_plugin_list()
+            
+            if plugin_manager is None:
+                logger.error("插件管理器实例为空")
+                plugin_error_msg = "插件管理器实例为空，请检查系统配置"
+            else:
+                # 获取插件列表
+                logger.debug("尝试获取插件列表")
+                plugins = plugin_manager.get_plugin_list()
+                logger.debug(f"获取到 {len(plugins)} 个插件")
+        except ImportError as import_err:
+            logger.error(f"导入插件管理器失败: {str(import_err)}")
+            plugin_error_msg = f"导入插件管理模块失败: {str(import_err)}"
+        except AttributeError as attr_err:
+            logger.error(f"插件管理器缺少必要方法: {str(attr_err)}")
+            plugin_error_msg = f"插件管理器接口错误: {str(attr_err)}"
         except Exception as plugin_err:
             logger.error(f"获取插件列表失败: {str(plugin_err)}")
+            logger.error(traceback.format_exc())
+            plugin_error_msg = f"获取插件列表时发生错误: {str(plugin_err)}"
         
         return templates.TemplateResponse(
             "plugins.html",
             {
                 "request": request,
                 "admin_name": username,
-                "plugins": plugins
+                "plugins": plugins,
+                "plugin_error_msg": plugin_error_msg
             }
         )
     except Exception as e:
@@ -686,13 +716,11 @@ async def api_wechat_logout(request: Request, username: str = Depends(get_curren
     """退出微信登录"""
     try:
         client = WechatAPIClient(host="localhost", port=9000)
-        result = await client.logout()
-        
-        success = result.get("success", False)
+        success = await client.log_out()
         
         return JSONResponse({
             "success": success,
-            "message": "退出成功" if success else "退出失败"
+            "message": "已成功退出微信登录" if success else "退出微信登录失败"
         })
     except Exception as e:
         logger.error(f"退出微信登录失败: {str(e)}")

@@ -13,17 +13,57 @@ from ..errors import *
 
 class LoginMixin(WechatAPIClientBase):
     async def is_running(self) -> bool:
-        """检查WechatAPI是否在运行。
+        """检查服务是否正在运行
 
         Returns:
-            bool: 如果WechatAPI正在运行返回True，否则返回False。
+            bool: 如果服务正在运行，则为True
         """
         try:
+            # 尝试发送一个简单的心跳请求
+            url = f"http://{self.ip}:{self.port}/is_running"
             async with aiohttp.ClientSession() as session:
-                response = await session.get(f'http://{self.ip}:{self.port}/IsRunning')
-                return await response.text() == 'OK'
-        except aiohttp.client_exceptions.ClientConnectorError:
+                async with session.get(url) as response:
+                    return response.status == 200
+        except:
             return False
+
+    async def get_login_status(self) -> dict:
+        """获取当前微信登录状态
+        
+        Returns:
+            dict: 包含登录状态信息的字典，如下所示：
+                {
+                    "is_logged_in": bool,  # 是否已登录
+                    "wxid": str,           # 微信ID (如已登录)
+                    "nickname": str,       # 微信昵称 (如已登录)
+                    "login_time": int,     # 登录时间戳 (如已登录)
+                    "device_type": str     # 设备类型 (如已登录)
+                }
+        """
+        # 获取基本登录信息
+        logged_in = bool(self.wxid)
+        
+        result = {
+            "is_logged_in": logged_in,
+            "wxid": self.wxid,
+            "nickname": self.nickname,
+            "login_time": 0,  # 默认值
+            "device_type": "Unknown"  # 默认值
+        }
+        
+        # 如果已登录，尝试获取更多详细信息
+        if logged_in:
+            try:
+                # 尝试获取更多详细信息
+                cached_info = await self.get_cached_info(self.wxid)
+                if cached_info:
+                    result["nickname"] = cached_info.get("nickname", self.nickname)
+                    # 添加其他可能有用的信息
+            except Exception:
+                # 如果获取额外信息失败，使用已有的基本信息
+                pass
+        
+        return result
 
     async def get_qr_code(self, device_name: str, device_id: str = "", proxy: Proxy = None, print_qr: bool = False) -> (
             str, str):

@@ -50,6 +50,14 @@
                 <div id="pluginsError" class="alert alert-danger d-none">
                     加载插件列表失败。
                 </div>
+                
+                {% if plugin_error_msg %}
+                <div class="alert alert-warning">
+                    <h5><i class="bi bi-exclamation-triangle"></i> 加载插件时发生错误</h5>
+                    <p>{{ plugin_error_msg }}</p>
+                    <p class="mb-0"><small>请检查日志获取更多信息，或重新启动服务以尝试解决此问题。</small></p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
