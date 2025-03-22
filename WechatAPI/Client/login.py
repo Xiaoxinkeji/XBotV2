@@ -7,7 +7,7 @@ import time
 import aiohttp
 import qrcode
 
-from .base import WechatAPIClientBase
+from .base import WechatAPIClientBase, Proxy
 from .protect import protector
 from ..errors import *
 
