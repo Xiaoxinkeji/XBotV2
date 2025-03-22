@@ -21,15 +21,29 @@ chmod -R 755 /app/logs
 # 检查关键依赖是否已安装
 echo "Checking for required dependencies..."
 python -c "
-import importlib.util
-for module in ['fastapi', 'uvicorn', 'starlette', 'itsdangerous']:
+import importlib.util, subprocess
+
+# 关键依赖列表
+required_modules = [
+    'fastapi', 'uvicorn', 'starlette', 'itsdangerous', 
+    'tomli', 'toml', 'jinja2', 'aiohttp', 'requests', 
+    'loguru', 'sqlalchemy', 'pydantic'
+]
+
+# 检查并安装缺失的模块
+missing_modules = []
+for module in required_modules:
     if importlib.util.find_spec(module) is None:
         print(f'ERROR: Required module {module} is not installed')
-        print(f'Installing missing module {module}...')
-        import subprocess
-        subprocess.check_call(['pip', 'install', module])
+        missing_modules.append(module)
     else:
         print(f'Module {module} is installed')
+
+# 批量安装缺失的模块
+if missing_modules:
+    print(f'Installing missing modules: {missing_modules}')
+    subprocess.check_call(['pip', 'install'] + missing_modules)
+    print('Missing modules have been installed')
 "
 
 # 如果是首次运行，创建样例日志文件

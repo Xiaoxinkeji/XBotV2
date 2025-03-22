@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir itsdangerous>=2.1.2 # 确保安装会话依赖
+    pip install --no-cache-dir itsdangerous>=2.1.2 tomli>=2.0.1 toml>=0.10.2 # 确保安装关键依赖
 
 # 复制其余项目文件
 COPY . .

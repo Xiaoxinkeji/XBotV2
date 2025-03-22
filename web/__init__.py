@@ -5,7 +5,14 @@ XBotV2 Web管理界面模块
 import sys
 import os
 import threading
-import tomllib
+# 处理TOML库的兼容性
+try:
+    import tomli as toml_parser  # Python 3.11前
+except ImportError:
+    try:
+        import tomllib as toml_parser  # Python 3.11+
+    except ImportError:
+        import toml as toml_parser  # 回退到toml库
 from pathlib import Path
 
 from loguru import logger

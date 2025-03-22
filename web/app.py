@@ -14,8 +14,13 @@ import sys
 import time
 import traceback
 import secrets
-import tomli
-import toml
+# 处理tomli与toml的兼容性
+try:
+    import tomli  # Python 3.11前的TOML解析
+except ImportError:
+    tomli = None
+    
+import toml  # 通用TOML解析库
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
@@ -86,9 +91,17 @@ def get_config():
     try:
         config_path = Path(BASE_DIR) / "main_config.toml"
         with open(config_path, "rb") as f:
-            return tomli.load(f)
+            # 优先使用tomli，如果不可用则使用toml
+            if tomli:
+                return tomli.load(f)
+            else:
+                # toml库需要文本而非二进制模式
+                f.close()
+                with open(config_path, "r", encoding="utf-8") as f2:
+                    return toml.load(f2)
     except Exception as e:
         logger.error(f"读取配置文件出错: {e}")
+        logger.error(traceback.format_exc())
         return {}
 
 # 用户认证相关函数
@@ -199,7 +212,7 @@ def get_plugin_config(plugin_id: str):
     
     try:
         with open(plugin_config_path, "rb") as f:
-            config_data = tomllib.load(f)
+            config_data = tomli.load(f)
         return config_data
     except:
         return None
@@ -409,7 +422,7 @@ async def install_plugin(install_type: str, **kwargs):
 def delete_plugin(plugin_id: str, delete_files: bool = False):
     # 读取配置
     with open(config_path, "rb") as f:
-        current_config = tomllib.load(f)
+        current_config = tomli.load(f)
     
     disabled_plugins = current_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -424,7 +437,7 @@ def delete_plugin(plugin_id: str, delete_files: bool = False):
             disabled_plugins.remove(plugin_id)
             current_config["XYBot"]["disabled-plugins"] = disabled_plugins
             
-            with open(config_path, "w") as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 toml.dump(current_config, f)
         
         # 如果需要删除文件
@@ -1196,7 +1209,7 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
 async def settings_page(request: Request, username: str = Depends(get_current_username)):
     """系统设置页面"""
     with open(config_path, "rb") as f:
-        system_config = tomllib.load(f)
+        system_config = tomli.load(f)
     return templates.TemplateResponse("settings.html", {"request": request, "config": system_config})
 
 @app.get("/logout")
@@ -1321,7 +1334,7 @@ async def get_plugins_api(username: str = Depends(get_current_username)):
 async def toggle_plugin(plugin_id: str, username: str = Depends(get_current_username)):
     # 读取配置
     with open(config_path, "rb") as f:
-        current_config = tomllib.load(f)
+        current_config = tomli.load(f)
     
     disabled_plugins = current_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -1387,7 +1400,7 @@ async def save_plugin_config(
     # 启用/禁用插件
     enabled = config_data.pop("enabled", True)
     with open(config_path, "rb") as f:
-        main_config = tomllib.load(f)
+        main_config = tomli.load(f)
     
     disabled_plugins = main_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -1685,7 +1698,7 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
     try:
         # 读取现有配置
         with open(config_path, "rb") as f:
-            current_config = tomllib.load(f)
+            current_config = tomli.load(f)
         
         # 更新配置
         for section, settings in config_data.items():
@@ -2098,7 +2111,7 @@ async def get_settings_api(username: str = Depends(get_current_username)):
     try:
         # 读取现有配置
         with open(config_path, "rb") as f:
-            system_config = tomllib.load(f)
+            system_config = tomli.load(f)
         
         return {"success": True, "data": system_config}
     except Exception as e:
