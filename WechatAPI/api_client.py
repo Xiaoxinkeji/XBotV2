@@ -10,7 +10,7 @@ from .Client.user import UserMixin
 from .Client.chatroom import ChatroomMixin
 from .Client.friend import FriendMixin
 from .Client.hongbao import HongBaoMixin
-from .Client.protect import ProtectMixin
+from .Client.protect import protector
 from .Client.tool import ToolMixin
 
 
@@ -20,8 +20,7 @@ class WechatAPIClient(WechatAPIClientBase,
                     UserMixin, 
                     ChatroomMixin, 
                     FriendMixin, 
-                    HongBaoMixin, 
-                    ProtectMixin, 
+                    HongBaoMixin,
                     ToolMixin):
     """
     微信API客户端
