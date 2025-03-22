@@ -3,7 +3,7 @@ WechatAPI客户端主模块
 """
 
 from loguru import logger
-from .Client.base import BaseMixin
+from .Client.base import WechatAPIClientBase
 from .Client.login import LoginMixin
 from .Client.message import MessageMixin
 from .Client.user import UserMixin
@@ -14,7 +14,7 @@ from .Client.protect import ProtectMixin
 from .Client.tool import ToolMixin
 
 
-class WechatAPIClient(BaseMixin, 
+class WechatAPIClient(WechatAPIClientBase, 
                     LoginMixin, 
                     MessageMixin, 
                     UserMixin, 
