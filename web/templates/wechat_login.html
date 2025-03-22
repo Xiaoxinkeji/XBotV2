@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}微信登录 - XBotV2{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qrcode-container {
+        text-align: center;
+        margin: 2rem auto;
+        max-width: 300px;
+    }
+    
+    .qrcode-img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .status-container {
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .status-online {
+        background-color: rgba(25, 135, 84, 0.1);
+        border: 1px solid #198754;
+    }
+    
+    .status-offline {
+        background-color: rgba(220, 53, 69, 0.1);
+        border: 1px solid #dc3545;
+    }
+    
+    .refresh-button {
+        margin-top: 1rem;
+    }
+    
+    .instructions {
+        margin-top: 2rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #0d6efd;
+    }
+    
+    .status-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: inline-block;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+    }
+    
+    .status-text {
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-qr-code-scan me-2"></i>微信登录
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if login_status and login_status.is_logged_in %}
+            <!-- 已登录状态 -->
+            <div class="status-container status-online">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="status-icon bg-success"></div>
+                    <h4 class="status-text mb-0">已登录微信</h4>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>微信昵称:</strong> {{ login_status.nickname }}</p>
+                        <p><strong>微信ID:</strong> {{ login_status.wxid }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>登录时间:</strong> {{ login_status.login_time }}</p>
+                        <p><strong>设备类型:</strong> {{ login_status.device_type }}</p>
+                    </div>
+                </div>
+                <div class="d-grid gap-2 col-md-6 mx-auto mt-3">
+                    <button class="btn btn-danger" id="logoutButton">
+                        <i class="bi bi-box-arrow-right me-2"></i>退出微信登录
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <!-- 未登录状态 -->
+            <div class="status-container status-offline">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="status-icon bg-danger"></div>
+                    <h4 class="status-text mb-0">未登录微信</h4>
+                </div>
+                <p>请使用微信扫描下方二维码进行登录</p>
+            </div>
+            
+            <!-- 二维码区域 -->
+            <div class="qrcode-container">
+                {% if qrcode_url %}
+                <img src="{{ qrcode_url }}" alt="微信登录二维码" class="qrcode-img" id="qrcodeImage">
+                <div class="mt-3">
+                    <button class="btn btn-primary refresh-button" id="refreshQRCode">
+                        <i class="bi bi-arrow-clockwise me-2"></i>刷新二维码
+                    </button>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>获取二维码失败，请点击刷新按钮重试
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary refresh-button" id="refreshQRCode">
+                        <i class="bi bi-arrow-clockwise me-2"></i>刷新二维码
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- 登录说明 -->
+            <div class="instructions">
+                <h5><i class="bi bi-info-circle me-2"></i>登录说明</h5>
+                <ol>
+                    <li>打开手机微信，点击右上角的"+"</li>
+                    <li>选择"扫一扫"，扫描上方二维码</li>
+                    <li>在手机上确认登录</li>
+                    <li>登录成功后请勿关闭此页面</li>
+                    <li>如果二维码过期，请点击"刷新二维码"按钮</li>
+                </ol>
+                <div class="alert alert-warning">
+                    <strong>注意：</strong> 首次登录新设备可能需要等待一段时间微信服务器验证，请耐心等待。
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshButton = document.getElementById('refreshQRCode');
+        const logoutButton = document.getElementById('logoutButton');
+        
+        // 刷新二维码
+        if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+                window.location.reload();
+            });
+        }
+        
+        // 退出登录
+        if (logoutButton) {
+            logoutButton.addEventListener('click', async function() {
+                if (confirm('确定要退出微信登录吗？')) {
+                    try {
+                        const response = await fetch('/api/wechat/logout', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            alert('已成功退出微信登录');
+                            window.location.reload();
+                        } else {
+                            alert('退出失败: ' + data.message);
+                        }
+                    } catch (error) {
+                        alert('发生错误: ' + error.message);
+                    }
+                }
+            });
+        }
+        
+        // 自动检查登录状态（30秒检查一次）
+        if (!{{ login_status.is_logged_in | default(false) | tojson }}) {
+            const checkLoginStatus = async () => {
+                try {
+                    const response = await fetch('/api/wechat/status');
+                    const data = await response.json();
+                    
+                    if (data.success && data.is_logged_in) {
+                        // 已登录，刷新页面
+                        window.location.reload();
+                    }
+                } catch (error) {
+                    console.error('检查登录状态出错:', error);
+                }
+            };
+            
+            // 每30秒检查一次
+            setInterval(checkLoginStatus, 30000);
+        }
+    });
+</script>
+{% endblock %} 

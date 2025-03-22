@@ -410,6 +410,221 @@ async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login")
 
+# 微信登录页面路由
+@app.get("/wechat_login", response_class=HTMLResponse)
+async def wechat_login(request: Request, username: str = Depends(get_current_username)):
+    """微信登录页面"""
+    try:
+        # 获取系统信息
+        system_info = get_system_info()
+        
+        # 获取微信登录状态
+        client = WechatAPIClient(host="localhost", port=9000)
+        login_status = await client.get_login_status()
+        
+        # 获取登录二维码（如果未登录）
+        qrcode_url = None
+        if not login_status.get("is_logged_in", False):
+            qrcode_data = await client.get_login_qrcode()
+            qrcode_url = qrcode_data.get("qrcode_url", "")
+        
+        return templates.TemplateResponse(
+            "wechat_login.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "system_info": system_info,
+                "login_status": login_status,
+                "qrcode_url": qrcode_url
+            }
+        )
+    except Exception as e:
+        logger.error(f"微信登录页面加载失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "error": "加载微信登录页面失败",
+                "message": str(e),
+                "error_details": traceback.format_exc(),
+                "status_code": 500
+            }
+        )
+
+# 插件管理页面路由
+@app.get("/plugins", response_class=HTMLResponse)
+async def plugins_page(request: Request, username: str = Depends(get_current_username)):
+    """插件管理页面"""
+    try:
+        # 获取插件列表
+        # 这里应该调用实际的插件管理器获取插件列表
+        plugins = []
+        try:
+            from utils.plugin_manager import get_plugin_manager
+            plugin_manager = get_plugin_manager()
+            plugins = plugin_manager.get_plugin_list()
+        except Exception as plugin_err:
+            logger.error(f"获取插件列表失败: {str(plugin_err)}")
+        
+        return templates.TemplateResponse(
+            "plugins.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "plugins": plugins
+            }
+        )
+    except Exception as e:
+        logger.error(f"插件页面加载失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "error": "加载插件页面失败",
+                "message": str(e),
+                "error_details": traceback.format_exc(),
+                "status_code": 500
+            }
+        )
+
+# 日志页面路由
+@app.get("/logs", response_class=HTMLResponse)
+async def logs_page(request: Request, username: str = Depends(get_current_username)):
+    """日志页面"""
+    try:
+        # 获取日志文件列表
+        logs_dir = Path("logs")
+        log_files = []
+        if logs_dir.exists():
+            log_files = sorted([f.name for f in logs_dir.glob("*.log")], reverse=True)
+        
+        # 读取最新的日志文件内容
+        logs = []
+        if log_files:
+            latest_log = logs_dir / log_files[0]
+            try:
+                with open(latest_log, "r", encoding="utf-8") as f:
+                    # 读取最后100行
+                    lines = f.readlines()[-100:]
+                    for line in lines:
+                        # 解析日志行
+                        parts = line.strip().split(" | ", 2)
+                        if len(parts) >= 3:
+                            timestamp, level, message = parts
+                            logs.append({
+                                "timestamp": timestamp,
+                                "level": level.strip(),
+                                "message": message.strip()
+                            })
+            except Exception as log_err:
+                logger.error(f"读取日志文件失败: {str(log_err)}")
+        
+        return templates.TemplateResponse(
+            "logs.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "logs": logs,
+                "log_files": log_files
+            }
+        )
+    except Exception as e:
+        logger.error(f"日志页面加载失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "error": "加载日志页面失败",
+                "message": str(e),
+                "error_details": traceback.format_exc(),
+                "status_code": 500
+            }
+        )
+
+# 设置页面路由
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, username: str = Depends(get_current_username)):
+    """设置页面"""
+    try:
+        # 读取配置文件
+        from utils.config_utils import load_toml_config
+        config_path = Path("main_config.toml")
+        config = load_toml_config(config_path)
+        
+        return templates.TemplateResponse(
+            "settings.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "config": config
+            }
+        )
+    except Exception as e:
+        logger.error(f"设置页面加载失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "error": "加载设置页面失败",
+                "message": str(e),
+                "error_details": traceback.format_exc(),
+                "status_code": 500
+            }
+        )
+
+# 保存设置路由
+@app.post("/save_settings")
+async def save_settings(request: Request, username: str = Depends(get_current_username)):
+    """保存设置"""
+    try:
+        form_data = await request.form()
+        
+        # 读取原配置
+        from utils.config_utils import load_toml_config, save_toml_config
+        config_path = Path("main_config.toml")
+        config = load_toml_config(config_path)
+        
+        # 更新配置
+        # 示例：更新Web接口设置
+        if "web_port" in form_data:
+            config["WebInterface"]["port"] = int(form_data["web_port"])
+        if "web_host" in form_data:
+            config["WebInterface"]["host"] = form_data["web_host"]
+        if "admin_username" in form_data:
+            config["WebInterface"]["username"] = form_data["admin_username"]
+        if "admin_password" in form_data and form_data["admin_password"]:
+            config["WebInterface"]["password"] = form_data["admin_password"]
+        
+        # 更新其他配置...
+        
+        # 保存配置
+        save_toml_config(config_path, config)
+        
+        # 重定向回设置页面
+        return RedirectResponse(url="/settings?success=1", status_code=303)
+    except Exception as e:
+        logger.error(f"保存设置失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "admin_name": username,
+                "error": "保存设置失败",
+                "message": str(e),
+                "error_details": traceback.format_exc(),
+                "status_code": 500
+            }
+        )
+
 # 启动Web服务器
 def start_web_server():
     """启动Web服务器"""
@@ -438,6 +653,147 @@ def start_web_server():
 # 当直接运行此文件时
 if __name__ == "__main__":
     start_web_server() 
+
+# API路由部分
+@app.get("/api/wechat/status", response_class=JSONResponse)
+async def api_wechat_status(request: Request, username: str = Depends(get_current_username)):
+    """获取微信登录状态"""
+    try:
+        client = WechatAPIClient(host="localhost", port=9000)
+        login_status = await client.get_login_status()
+        
+        return JSONResponse({
+            "success": True,
+            "is_logged_in": login_status.get("is_logged_in", False),
+            "nickname": login_status.get("nickname", ""),
+            "wxid": login_status.get("wxid", ""),
+            "login_time": login_status.get("login_time", ""),
+            "device_type": login_status.get("device_type", "")
+        })
+    except Exception as e:
+        logger.error(f"获取微信状态失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        })
+
+@app.post("/api/wechat/logout", response_class=JSONResponse)
+async def api_wechat_logout(request: Request, username: str = Depends(get_current_username)):
+    """退出微信登录"""
+    try:
+        client = WechatAPIClient(host="localhost", port=9000)
+        result = await client.logout()
+        
+        success = result.get("success", False)
+        
+        return JSONResponse({
+            "success": success,
+            "message": "退出成功" if success else "退出失败"
+        })
+    except Exception as e:
+        logger.error(f"退出微信登录失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        })
+
+@app.get("/api/logs", response_class=JSONResponse)
+async def api_logs(
+    request: Request, 
+    username: str = Depends(get_current_username),
+    limit: int = 100,
+    level: str = "",
+    search: str = ""
+):
+    """获取日志API"""
+    try:
+        # 获取日志文件列表
+        logs_dir = Path("logs")
+        log_files = []
+        if logs_dir.exists():
+            log_files = sorted([f.name for f in logs_dir.glob("*.log")], reverse=True)
+        
+        # 读取最新的日志文件内容
+        logs = []
+        if log_files:
+            latest_log = logs_dir / log_files[0]
+            try:
+                with open(latest_log, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    # 从末尾开始读取
+                    for line in reversed(lines):
+                        # 如果已经达到限制，停止读取
+                        if len(logs) >= limit:
+                            break
+                            
+                        # 解析日志行
+                        parts = line.strip().split(" | ", 2)
+                        if len(parts) >= 3:
+                            timestamp, log_level, message = parts
+                            
+                            # 级别过滤
+                            if level and level.upper() != log_level.strip().upper():
+                                continue
+                                
+                            # 关键词过滤
+                            if search and search.lower() not in message.lower():
+                                continue
+                                
+                            logs.append({
+                                "timestamp": timestamp,
+                                "level": log_level.strip(),
+                                "message": message.strip()
+                            })
+            except Exception as log_err:
+                logger.error(f"读取日志文件失败: {str(log_err)}")
+        
+        return JSONResponse({
+            "success": True,
+            "logs": logs
+        })
+    except Exception as e:
+        logger.error(f"获取日志失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        })
+
+@app.get("/api/logs/download")
+async def download_logs(request: Request, username: str = Depends(get_current_username)):
+    """下载日志文件"""
+    try:
+        # 获取最新的日志文件
+        logs_dir = Path("logs")
+        log_files = []
+        if logs_dir.exists():
+            log_files = sorted([f for f in logs_dir.glob("*.log")], reverse=True, key=lambda x: x.stat().st_mtime)
+        
+        if not log_files:
+            return JSONResponse({
+                "success": False,
+                "message": "未找到日志文件"
+            })
+        
+        latest_log = log_files[0]
+        
+        return FileResponse(
+            path=latest_log,
+            filename=latest_log.name,
+            media_type="text/plain"
+        )
+    except Exception as e:
+        logger.error(f"下载日志失败: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        })
+
+# 导入WechatAPIClient
+from WechatAPI.api_client import WechatAPIClient
 
 
 
