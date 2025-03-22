@@ -7,6 +7,9 @@
 let statsChart = null;
 let statusRefreshInterval = null;
 
+// 存储上一次的机器人状态
+let lastRobotStatus = null;
+
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', function () {
     // 初始化状态刷新
@@ -61,21 +64,39 @@ async function refreshStatus() {
         
         const data = await response.json();
         
-        if (!data.success) {
-            throw new Error(data.message || '获取状态失败');
-        }
-        
         // 更新各种状态信息
         updateRobotStatus(data.robot);
         updateSystemStatus(data.system);
         updatePluginStatus(data.plugins);
-        updateMessageStats(data.message_stats);
-        updateRecentMessages(data.recent_messages);
-        updateRecentLogs(data.recent_logs);
+        updateMessageStats(data.messages);
         
-        // 如果有图表数据则更新图表
-        if (data.chart_data && statsChart) {
-            updateStatsChart(data.chart_data);
+        // 如果页面上有日志表格和消息表格，则获取更多数据更新它们
+        if (document.getElementById('recentMessages')) {
+            fetch('/api/messages?limit=5')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.messages) {
+                        updateRecentMessages(data.messages);
+                    }
+                })
+                .catch(err => console.error('获取最近消息失败:', err));
+        }
+        
+        if (document.getElementById('recentLogs')) {
+            fetch('/api/logs?limit=5')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.logs) {
+                        updateRecentLogs(data.logs);
+                    }
+                })
+                .catch(err => console.error('获取最近日志失败:', err));
+        }
+        
+        // 如果有图表并且显示在页面上，则更新图表
+        if (statsChart && document.getElementById('statsChart')) {
+            // 这里可以使用模拟数据或者从服务器获取真实数据
+            updateChartWithMockData('day');
         }
     } catch (error) {
         console.error('刷新状态错误:', error);
@@ -113,71 +134,87 @@ function updateRobotStatus(robotData) {
     const stopBtn = document.getElementById('stopRobot');
     const restartBtn = document.getElementById('restartRobot');
     const detailsDiv = document.getElementById('robotDetails');
-    const pidSpan = document.getElementById('robotPid');
-    const uptimeSpan = document.getElementById('robotUptime');
-    const pluginCountSpan = document.getElementById('pluginCount');
     
-    // 更新基本状态
+    // 检查状态是否发生变化
+    if (lastRobotStatus !== null) {
+        const statusChanged = lastRobotStatus.online !== robotData.online;
+        if (statusChanged) {
+            // 状态变化，显示通知
+            if (robotData.online) {
+                // 从离线变为在线
+                showNotification('机器人已上线', 'success', 5000);
+            } else {
+                // 从在线变为离线
+                showNotification('机器人已掉线', 'danger', 5000);
+            }
+        }
+    }
+    
+    // 更新上一次状态
+    lastRobotStatus = {...robotData};
+    
     if (robotData.online) {
-        statusEl.innerHTML = '<span class="text-success">在线</span>';
-        iconEl.className = 'bi bi-check-circle-fill text-success';
+        // 在线状态
+        statusEl.innerHTML = `<span class="text-success">在线</span>`;
+        iconEl.className = 'bi bi-check-circle-fill text-success status-pulse';
         
-        // 显示详情区域
-        if (detailsDiv) detailsDiv.style.display = 'block';
-        
-        // 更新PID和插件数量
-        if (pidSpan && robotData.pid) pidSpan.textContent = robotData.pid;
-        if (uptimeSpan && robotData.uptime) uptimeSpan.textContent = formatUptime(robotData.uptime);
-        if (pluginCountSpan) pluginCountSpan.textContent = robotData.plugin_count || 0;
-        
-        // 更新按钮状态
+        // 启用停止和重启按钮，禁用启动按钮
         startBtn.disabled = true;
         stopBtn.disabled = false;
         restartBtn.disabled = false;
         
-        // 添加轻微的脉动效果表示活跃状态
-        iconEl.classList.add('status-pulse');
+        // 显示详细信息
+        detailsDiv.style.display = 'block';
+        if (document.getElementById('robotPid')) {
+            document.getElementById('robotPid').textContent = robotData.pid || '--';
+        }
+        if (document.getElementById('robotUptime')) {
+            document.getElementById('robotUptime').textContent = formatUptime(robotData.uptime) || '--';
+        }
+        if (document.getElementById('pluginCount')) {
+            document.getElementById('pluginCount').textContent = robotData.plugin_count || '0';
+        }
+        
+        // 如果有用户资料，显示用户信息
+        if (robotData.wxid && document.getElementById('wxProfile')) {
+            const profileDiv = document.getElementById('wxProfile');
+            profileDiv.style.display = 'block';
+            
+            if (document.getElementById('wxNickname')) {
+                document.getElementById('wxNickname').textContent = robotData.nickname || robotData.wxid;
+            }
+            if (document.getElementById('wxId')) {
+                document.getElementById('wxId').textContent = robotData.wxid;
+            }
+            // 如果有头像
+            if (robotData.avatar_url && document.getElementById('wxAvatar')) {
+                document.getElementById('wxAvatar').src = robotData.avatar_url;
+            }
+        }
+    } else if (robotData.loading) {
+        // 加载中状态
+        statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span><span class="text-warning">加载中...</span>`;
+        iconEl.className = 'bi bi-hourglass-split text-warning';
+        
+        // 禁用所有按钮
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        restartBtn.disabled = true;
+        
+        // 隐藏详细信息
+        detailsDiv.style.display = 'none';
     } else {
-        statusEl.innerHTML = '<span class="text-danger">离线</span>';
+        // 离线状态
+        statusEl.innerHTML = `<span class="text-danger">离线</span>`;
         iconEl.className = 'bi bi-x-circle-fill text-danger';
         
-        // 隐藏详情区域
-        if (detailsDiv) detailsDiv.style.display = 'none';
-        
-        // 更新按钮状态
+        // 启用启动按钮，禁用停止和重启按钮
         startBtn.disabled = false;
         stopBtn.disabled = true;
         restartBtn.disabled = true;
         
-        // 移除脉动效果
-        iconEl.classList.remove('status-pulse');
-    }
-    
-    // 如果存在其他状态，如"启动中"、"停止中"等
-    if (robotData.transitioning) {
-        switch (robotData.transitioning) {
-            case 'starting':
-                statusEl.innerHTML = '<span class="text-warning">启动中...</span>';
-                iconEl.className = 'bi bi-hourglass-split text-warning';
-                startBtn.disabled = true;
-                stopBtn.disabled = true;
-                restartBtn.disabled = true;
-                break;
-            case 'stopping':
-                statusEl.innerHTML = '<span class="text-warning">停止中...</span>';
-                iconEl.className = 'bi bi-hourglass-split text-warning';
-                startBtn.disabled = true;
-                stopBtn.disabled = true;
-                restartBtn.disabled = true;
-                break;
-            case 'restarting':
-                statusEl.innerHTML = '<span class="text-warning">重启中...</span>';
-                iconEl.className = 'bi bi-hourglass-split text-warning';
-                startBtn.disabled = true;
-                stopBtn.disabled = true;
-                restartBtn.disabled = true;
-                break;
-        }
+        // 隐藏详细信息
+        detailsDiv.style.display = 'none';
     }
 }
 

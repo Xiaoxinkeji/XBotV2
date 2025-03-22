@@ -35,6 +35,7 @@ import sqlite3
 import random
 import requests
 import socket
+import math
 
 # 确保能导入主项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -139,7 +140,7 @@ def send_pushplus_notification(title, content, template="html"):
             logger.debug("状态通知功能未启用")
             return False
             
-        pushplus_token = notify_config.get("pushplus_token", "")
+        pushplus_token = notify_config.get("pushplus-token", "")
         if not pushplus_token:
             logger.warning("未配置PushPlus token，无法发送通知")
             return False
@@ -205,8 +206,8 @@ def check_robot_status_change(robot_status):
             # 构建消息内容
             if current_online:
                 # 上线通知
-                if notify_config.get("notify_online", True):
-                    title = notify_config.get("online_title", "机器人已上线")
+                if notify_config.get("notify-online", True):
+                    title = notify_config.get("online-title", "机器人已上线")
                     content = f"""
                     <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
                         <h3 style="color: #28a745;">✅ 机器人已上线</h3>
@@ -220,8 +221,8 @@ def check_robot_status_change(robot_status):
                     send_pushplus_notification(title, content)
             else:
                 # 掉线通知
-                if notify_config.get("notify_offline", True):
-                    title = notify_config.get("offline_title", "机器人已掉线")
+                if notify_config.get("notify-offline", True):
+                    title = notify_config.get("offline-title", "机器人已掉线")
                     content = f"""
                     <div style="padding: 15px; background-color: #f8f9fa; border-radius: 10px;">
                         <h3 style="color: #dc3545;">❌ 机器人已掉线</h3>
@@ -351,9 +352,6 @@ def get_robot_status():
         "message_count": message_count,
         "pid": pid
     }
-    
-    # 检查状态变化并发送通知
-    check_robot_status_change(status_data)
     
     return status_data
 
@@ -827,10 +825,9 @@ def control_robot(action: str):
                 
                 logger.info("机器人已成功停止")
                 
-                # 手动更新状态以触发通知
-                # 将之前获取的状态改为离线，然后调用检查函数
+                # 更新状态，但不直接发送通知
+                # API端点会在下次请求时检测状态变化并发送通知
                 current_status["online"] = False
-                check_robot_status_change(current_status)
                 
                 return {"success": True, "message": "机器人已停止"}
                 
@@ -1255,9 +1252,6 @@ async def get_status_api(username: str = Depends(get_current_username)):
         # 获取机器人状态
         robot_status = get_robot_status()
         
-        # 检查状态变化并发送通知
-        check_robot_status_change(robot_status)
-        
         # 获取系统信息
         system_info = {
             "cpu": psutil.cpu_percent(),
@@ -1293,121 +1287,29 @@ async def get_status_api(username: str = Depends(get_current_username)):
                     if "avatar_url" in profile_data:
                         user_info["avatar_url"] = profile_data["avatar_url"]
         except Exception as e:
-            logger.warning(f"读取用户头像URL失败: {e}")
+            logger.warning(f"获取头像URL时出错: {e}")
         
         # 获取消息统计
         message_stats = get_message_stats()
         
-        # 获取最近日志
-        recent_logs = get_recent_logs(limit=5)
-        logs = filter_logs(recent_logs, None, None)
+        # 检查机器人状态变化，触发通知
+        check_robot_status_change(robot_status)
         
-        return {
-            "success": True,
+        # 构建响应数据
+        response_data = {
             "robot": robot_status,
             "system": system_info,
             "plugins": plugin_info,
             "user": user_info,
-            "message_stats": message_stats,
-            "recent_logs": logs
+            "messages": message_stats
         }
-    except Exception as e:
-        logger.error(f"获取状态信息时发生错误: {e}")
-        return {"success": False, "message": f"获取状态失败: {str(e)}"}
-
-# 获取登录时间
-def get_login_time():
-    try:
-        profile_path = PROJECT_ROOT / "resource" / "profile.json"
-        if os.path.exists(profile_path):
-            stat = os.stat(profile_path)
-            return datetime.fromtimestamp(stat.st_mtime).isoformat()
-    except Exception as e:
-        logger.error(f"获取登录时间失败: {e}")
-    return None
-
-# 获取消息统计
-def get_message_stats():
-    # 这里模拟消息统计，实际项目中应该从数据库或其他数据源获取
-    try:
-        # 如果有消息数据库，可以从这里获取实际统计
-        total_messages = 0
-        today_messages = 0
-        group_messages = 0
-        private_messages = 0
         
-        # 如果机器人在线，尝试获取实际统计
-        robot_online, _ = is_robot_running()
-        if robot_online and MODULES_LOADED:
-            # 从数据库获取统计，这里是示例实现
-            pass
-            
-        return {
-            "total": total_messages,
-            "today": today_messages,
-            "group": group_messages,
-            "private": private_messages
-        }
+        return response_data
     except Exception as e:
-        logger.error(f"获取消息统计失败: {e}")
-        return {
-            "total": 0,
-            "today": 0,
-            "group": 0,
-            "private": 0
-        }
+        logger.error(f"获取状态API时出错: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/plugins", response_class=HTMLResponse)
-async def get_plugins_page(request: Request, username: str = Depends(get_current_username)):
-    plugins = get_plugins()
-    return templates.TemplateResponse("plugins.html", {"request": request, "plugins": plugins})
-
-@app.get("/plugin_config", response_class=HTMLResponse)
-async def get_plugin_config_page(request: Request, id: str, username: str = Depends(get_current_username)):
-    # 验证插件是否存在
-    plugin_dir = PROJECT_ROOT / "plugins" / id
-    if not plugin_dir.is_dir():
-        return RedirectResponse(url="/plugins")
-    
-    # 获取插件信息
-    plugins = get_plugins()
-    plugin = next((p for p in plugins if p["id"] == id), None)
-    
-    if not plugin:
-        return RedirectResponse(url="/plugins")
-    
-    # 获取插件配置
-    config_data = get_plugin_config(id) or {}
-    
-    return templates.TemplateResponse("plugin_config.html", {
-        "request": request, 
-        "plugin": plugin,
-        "config": config_data
-    })
-
-@app.get("/messages", response_class=HTMLResponse)
-async def get_messages_page(request: Request, username: str = Depends(get_current_username)):
-    # 此处后续可以从数据库获取消息记录
-    return templates.TemplateResponse("messages.html", {"request": request, "robot": get_robot_status()})
-
-@app.get("/settings", response_class=HTMLResponse)
-async def get_settings_page(request: Request, username: str = Depends(get_current_username)):
-    # 加载系统设置
-    with open(config_path, "rb") as f:
-        system_config = tomllib.load(f)
-    
-    return templates.TemplateResponse("settings.html", {"request": request, "robot": get_robot_status(), "config": system_config})
-
-@app.get("/login", response_class=HTMLResponse)
-async def get_login_page(request: Request, username: str = Depends(get_current_username)):
-    return templates.TemplateResponse("login.html", {"request": request, "robot": get_robot_status()})
-
-@app.post("/login", response_class=HTMLResponse)
-async def post_login_page(request: Request, username: str = Depends(get_current_username)):
-    # 处理登录表单提交，但实际上我们只是返回相同的页面，因为登录处理是通过JavaScript完成的
-    return templates.TemplateResponse("login.html", {"request": request, "robot": get_robot_status()})
-
-# API路由
 @app.get("/api/plugins")
 async def get_plugins_api(username: str = Depends(get_current_username)):
     plugins = get_plugins()
@@ -1799,7 +1701,8 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
         # 特殊处理通知设置 - 确保它们被放在正确的部分
         notification_keys = [
             'notification-enabled', 'pushplus-token', 
-            'notify-offline', 'notify-online'
+            'notify-offline', 'notify-online',
+            'online-title', 'offline-title'
         ]
         
         # 如果配置中有通知相关设置，确保Notification部分存在
@@ -1812,13 +1715,19 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
                 current_config['Notification']['enable'] = config_data['notification-enabled']
             
             if 'pushplus-token' in config_data:
-                current_config['Notification']['pushplus_token'] = config_data['pushplus-token']
+                current_config['Notification']['pushplus-token'] = config_data['pushplus-token']
             
             if 'notify-offline' in config_data:
-                current_config['Notification']['notify_offline'] = config_data['notify-offline']
+                current_config['Notification']['notify-offline'] = config_data['notify-offline']
             
             if 'notify-online' in config_data:
-                current_config['Notification']['notify_online'] = config_data['notify-online']
+                current_config['Notification']['notify-online'] = config_data['notify-online']
+                
+            if 'online-title' in config_data:
+                current_config['Notification']['online-title'] = config_data['online-title']
+                
+            if 'offline-title' in config_data:
+                current_config['Notification']['offline-title'] = config_data['offline-title']
         
         # 保存配置 - 使用toml库而不是tomllib
         with open(config_path, "w", encoding="utf-8") as f:
@@ -2225,6 +2134,94 @@ async def get_settings_api(username: str = Depends(get_current_username)):
         logger.error(f"获取设置失败: {e}")
         logger.error(traceback.format_exc())
         return {"success": False, "message": f"获取设置失败: {str(e)}"}
+
+@app.get("/api/messages")
+async def get_messages_api(
+    page: int = 1, 
+    limit: int = 10, 
+    search: str = None, 
+    username: str = Depends(get_current_username)
+):
+    """获取消息列表API接口"""
+    try:
+        # 这里实际应该从数据库读取消息记录
+        # 当前为了解决模板缺失错误，我们返回模拟数据
+        
+        # 模拟的消息数据
+        mock_messages = [
+            {
+                "id": "1",
+                "sender": "张三 (wxid_123456)",
+                "content": "你好，这是一条测试消息",
+                "type": "text",
+                "timestamp": int(time.time() - 3600 * 5) * 1000  # 5小时前
+            },
+            {
+                "id": "2",
+                "sender": "李四 (wxid_234567)",
+                "content": "https://example.com/image.jpg",
+                "type": "image",
+                "timestamp": int(time.time() - 3600 * 3) * 1000  # 3小时前
+            },
+            {
+                "id": "3",
+                "sender": "测试群 (23456789@chatroom)",
+                "content": "这是来自群聊的消息",
+                "type": "text",
+                "timestamp": int(time.time() - 3600 * 1) * 1000  # 1小时前
+            },
+            {
+                "id": "4",
+                "sender": "系统通知",
+                "content": "机器人已成功登录",
+                "type": "system",
+                "timestamp": int(time.time() - 600) * 1000  # 10分钟前
+            },
+            {
+                "id": "5",
+                "sender": "王五 (wxid_345678)",
+                "content": "https://example.com/voice.mp3",
+                "type": "voice",
+                "timestamp": int(time.time() - 300) * 1000  # 5分钟前
+            }
+        ]
+        
+        # 如果有搜索参数，过滤消息
+        if search:
+            search = search.lower()
+            mock_messages = [
+                msg for msg in mock_messages 
+                if search in msg["sender"].lower() or search in msg["content"].lower()
+            ]
+        
+        # 分页信息
+        total_messages = len(mock_messages)
+        total_pages = max(1, math.ceil(total_messages / limit))
+        current_page = min(page, total_pages)
+        
+        # 计算当前页的消息
+        start_idx = (current_page - 1) * limit
+        end_idx = start_idx + limit
+        page_messages = mock_messages[start_idx:end_idx]
+        
+        # 返回数据
+        return {
+            "success": True,
+            "messages": page_messages,
+            "pagination": {
+                "current_page": current_page,
+                "total_pages": total_pages,
+                "total_records": total_messages,
+                "limit": limit
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取消息列表失败: {e}")
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "message": f"获取消息列表失败: {str(e)}"
+        }
 
 if __name__ == "__main__":
     start_web_server() 

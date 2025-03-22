@@ -50,6 +50,13 @@ function initGlobalEventListeners() {
         });
     });
     
+    // 初始化通知容器
+    if (!document.querySelector('.notification-container')) {
+        const notificationContainer = document.createElement('div');
+        notificationContainer.className = 'notification-container';
+        document.body.appendChild(notificationContainer);
+    }
+    
     // 切换可见性的元素
     document.querySelectorAll('[data-toggle-target]').forEach(el => {
         el.addEventListener('click', function(e) {

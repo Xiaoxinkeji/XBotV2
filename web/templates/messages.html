@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}消息记录 - XBotV2{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-chat-text me-2"></i>消息记录
+                </h5>
+                <div>
+                    <div class="input-group">
+                        <label for="messageSearch" class="visually-hidden">搜索消息</label>
+                        <input type="text" id="messageSearch" class="form-control form-control-sm" placeholder="搜索消息..." aria-label="搜索消息">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="searchButton" aria-label="搜索">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>来源</th>
+                                <th>内容</th>
+                                <th>类型</th>
+                                <th>时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="messagesList">
+                            <tr id="loadingRow">
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                    <span>正在加载消息记录...</span>
+                                </td>
+                            </tr>
+                            <!-- 消息记录将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <nav aria-label="消息分页">
+                    <ul class="pagination pagination-sm justify-content-center mb-0">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">上一页</a>
+                        </li>
+                        <li class="page-item active" aria-current="page">
+                            <a class="page-link" href="#">1</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">2</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">3</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">下一页</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 消息详情模态框 -->
+<div class="modal fade" id="messageDetailModal" tabindex="-1" aria-labelledby="messageDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="messageDetailModalLabel">消息详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">消息类型：</label>
+                    <div id="modalMessageType" class="fw-bold"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">发送时间：</label>
+                    <div id="modalMessageTime"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">发送者：</label>
+                    <div id="modalMessageSender"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">消息内容：</label>
+                    <div id="modalMessageContent" class="p-2 border rounded bg-light"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 加载消息数据的函数
+        async function loadMessages(page = 1, search = '') {
+            try {
+                const response = await fetch(`/api/messages?page=${page}&search=${encodeURIComponent(search)}`);
+                if (!response.ok) {
+                    throw new Error('获取消息数据失败');
+                }
+                
+                const data = await response.json();
+                
+                // 如果数据获取成功但没有消息
+                if (data.messages && data.messages.length === 0) {
+                    document.getElementById('messagesList').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4">暂无消息记录</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // 更新消息列表
+                updateMessagesList(data.messages || []);
+                
+                // 更新分页
+                updatePagination(data.pagination || { current_page: 1, total_pages: 1 });
+                
+            } catch (error) {
+                console.error('加载消息失败:', error);
+                document.getElementById('messagesList').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            加载消息失败，请稍后重试
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        // 更新消息列表
+        function updateMessagesList(messages) {
+            const messagesListElement = document.getElementById('messagesList');
+            let messagesHTML = '';
+            
+            messages.forEach(message => {
+                messagesHTML += `
+                    <tr>
+                        <td>${escapeHTML(message.sender || '未知')}</td>
+                        <td>${formatMessageContent(message.content, 50)}</td>
+                        <td><span class="badge bg-${getMessageTypeColor(message.type)}">${getMessageTypeName(message.type)}</span></td>
+                        <td>${formatDateTime(message.timestamp)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary view-message" data-message-id="${message.id}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            messagesListElement.innerHTML = messagesHTML;
+            
+            // 添加查看消息详情的点击事件
+            document.querySelectorAll('.view-message').forEach(button => {
+                button.addEventListener('click', function() {
+                    const messageId = this.getAttribute('data-message-id');
+                    showMessageDetail(messageId);
+                });
+            });
+        }
+        
+        // 更新分页控件
+        function updatePagination(pagination) {
+            const paginationElement = document.querySelector('.pagination');
+            const currentPage = pagination.current_page;
+            const totalPages = pagination.total_pages;
+            
+            let paginationHTML = `
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}" tabindex="-1" ${currentPage === 1 ? 'aria-disabled="true"' : ''}>上一页</a>
+                </li>
+            `;
+            
+            // 生成页码
+            const showPages = 5; // 显示的页码数量
+            const startPage = Math.max(1, currentPage - Math.floor(showPages / 2));
+            const endPage = Math.min(totalPages, startPage + showPages - 1);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}" ${i === currentPage ? 'aria-current="page"' : ''}>
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    </li>
+                `;
+            }
+            
+            paginationHTML += `
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'aria-disabled="true"' : ''}>下一页</a>
+                </li>
+            `;
+            
+            paginationElement.innerHTML = paginationHTML;
+            
+            // 添加分页点击事件
+            document.querySelectorAll('.page-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const page = parseInt(this.getAttribute('data-page'));
+                    if (!isNaN(page) && page > 0) {
+                        loadMessages(page, document.getElementById('messageSearch').value);
+                    }
+                });
+            });
+        }
+        
+        // 显示消息详情
+        function showMessageDetail(messageId) {
+            // 实际项目中这里应该通过API获取消息详情
+            // 这里先模拟一些数据
+            const messageDetail = {
+                type: '文本消息',
+                time: new Date().toLocaleString(),
+                sender: '张三 (wxid_12345)',
+                content: '这是一条示例消息内容，实际项目中应通过API获取真实数据。'
+            };
+            
+            document.getElementById('modalMessageType').textContent = messageDetail.type;
+            document.getElementById('modalMessageTime').textContent = messageDetail.time;
+            document.getElementById('modalMessageSender').textContent = messageDetail.sender;
+            document.getElementById('modalMessageContent').textContent = messageDetail.content;
+            
+            // 显示模态框
+            const messageDetailModal = new bootstrap.Modal(document.getElementById('messageDetailModal'));
+            messageDetailModal.show();
+        }
+        
+        // 获取消息类型对应的名称
+        function getMessageTypeName(type) {
+            const typeMap = {
+                'text': '文本',
+                'image': '图片',
+                'voice': '语音',
+                'video': '视频',
+                'file': '文件',
+                'system': '系统'
+            };
+            return typeMap[type] || type;
+        }
+        
+        // 获取消息类型对应的颜色
+        function getMessageTypeColor(type) {
+            const colorMap = {
+                'text': 'primary',
+                'image': 'info',
+                'voice': 'success',
+                'video': 'warning',
+                'file': 'secondary',
+                'system': 'dark'
+            };
+            return colorMap[type] || 'primary';
+        }
+        
+        // 格式化消息内容（截断过长的内容）
+        function formatMessageContent(content, maxLength = 50) {
+            if (!content) return '';
+            content = escapeHTML(content);
+            if (content.length <= maxLength) return content;
+            return content.substring(0, maxLength) + '...';
+        }
+        
+        // 格式化日期时间
+        function formatDateTime(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+        
+        // HTML转义函数
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        
+        // 搜索按钮点击事件
+        document.getElementById('searchButton').addEventListener('click', function() {
+            const searchTerm = document.getElementById('messageSearch').value;
+            loadMessages(1, searchTerm);
+        });
+        
+        // 搜索框按回车键事件
+        document.getElementById('messageSearch').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                const searchTerm = document.getElementById('messageSearch').value;
+                loadMessages(1, searchTerm);
+            }
+        });
+        
+        // 初始加载消息
+        loadMessages();
+    });
+</script>
+{% endblock %} 

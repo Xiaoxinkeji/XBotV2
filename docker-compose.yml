@@ -6,10 +6,13 @@ services:
     restart: on-failure:3
     ports:
       - "8080:8080"  # Web管理界面端口
+      - "9000:9000"  # WechatAPI服务器端口
     volumes:
       - ./database:/app/database
       - ./logs:/app/logs
       - ./resource:/app/resource
+      - ./plugins:/app/plugins  # 添加插件目录挂载
+      - ./main_config.toml:/app/main_config.toml  # 配置文件挂载
       - ./logs:/var/log/xbotv2
       - redis_data:/var/lib/redis
     environment:

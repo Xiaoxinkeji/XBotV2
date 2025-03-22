@@ -241,6 +241,18 @@
                                     </label>
                                 </div>
                             </div>
+                            
+                            <div class="mb-3">
+                                <label for="onlineTitle" class="form-label">上线通知标题</label>
+                                <input type="text" class="form-control" id="onlineTitle" value="{{ config.get('Notification', {}).get('online-title', '机器人已上线') }}">
+                                <div class="form-text">自定义上线通知的标题文本</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="offlineTitle" class="form-label">掉线通知标题</label>
+                                <input type="text" class="form-control" id="offlineTitle" value="{{ config.get('Notification', {}).get('offline-title', '机器人已掉线') }}">
+                                <div class="form-text">自定义掉线通知的标题文本</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -379,7 +391,9 @@
             'notification-enabled': document.getElementById('enableNotification').checked,
             'pushplus-token': document.getElementById('pushplusToken').value,
             'notify-offline': document.getElementById('notifyOffline').checked,
-            'notify-online': document.getElementById('notifyOnline').checked
+            'notify-online': document.getElementById('notifyOnline').checked,
+            'online-title': document.getElementById('onlineTitle').value,
+            'offline-title': document.getElementById('offlineTitle').value
         };
         
         // 收集管理员列表

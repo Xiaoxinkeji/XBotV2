@@ -4,6 +4,7 @@ set -e
 echo "Starting XBotV2 services..."
 
 # 确保Redis服务正在运行
+echo "Starting redis-server: redis-server."
 service redis-server start
 
 # 创建必要的目录
@@ -28,7 +29,6 @@ fi
 # 设置Python环境变量
 export PYTHONUNBUFFERED=1
 
-# 启动Web服务
-echo "Starting web service..."
+# 启动XBotV2主程序（包含机器人核心和Web服务）
 cd /app
-python -m web.app
+python main.py

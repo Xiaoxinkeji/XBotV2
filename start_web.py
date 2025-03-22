@@ -6,9 +6,6 @@ from pathlib import Path
 script_dir = Path(__file__).resolve().parent
 os.chdir(script_dir)
 
-# 导入 Web 服务器
-from web import start_web_server
-
 # 添加日志信息
 from loguru import logger
 logger.remove()
@@ -44,7 +41,8 @@ if __name__ == "__main__":
     if user_choice.lower() == 'y':
         print("启动 Web 服务器...")
         logger.info("启动 Web 服务器...")
-        # 启动 Web 服务器
+        # 直接导入并调用web.app中的函数
+        from web.app import start_web_server
         start_web_server()
     else:
         print("操作已取消。请使用 'python main.py' 启动完整程序。")
