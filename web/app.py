@@ -46,6 +46,23 @@ logging.basicConfig(
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 logger.info(f"项目根目录: {BASE_DIR}")
 
+# 定义全局使用的配置路径
+config_path = Path(BASE_DIR) / "main_config.toml"
+PROJECT_ROOT = Path(BASE_DIR)
+
+# 创建FastAPI应用
+app = FastAPI(title="XBotV2 Web管理",
+              description="XBotV2微信机器人的Web管理界面",
+              version="1.0")
+
+# 添加会话中间件
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=secrets.token_urlsafe(32),  # 使用随机生成的密钥
+    session_cookie="xbotv2_session",
+    max_age=3600  # 会话有效期1小时
+)
+
 # 模板和静态文件目录
 templates_path = Path(BASE_DIR) / "web" / "templates"
 if not templates_path.exists():
@@ -81,32 +98,12 @@ def get_uptime():
         logger.error(f"获取系统运行时间出错: {e}")
         return "未知"
 
-app = FastAPI(title="XBotV2 Web管理",
-              description="XBotV2微信机器人的Web管理界面",
-              version="1.0")
-
-# 添加会话中间件
-app.add_middleware(
-    SessionMiddleware, 
-    secret_key=secrets.token_urlsafe(32),  # 使用随机生成的密钥
-    session_cookie="xbotv2_session",
-    max_age=3600  # 会话有效期1小时
-)
-
 # 配置相关函数
 def get_config():
     """获取当前配置"""
     try:
         config_path = Path(BASE_DIR) / "main_config.toml"
-        with open(config_path, "rb") as f:
-            # 优先使用tomli，如果不可用则使用toml
-            if tomli:
-                return tomli.load(f)
-            else:
-                # toml库需要文本而非二进制模式
-                f.close()
-                with open(config_path, "r", encoding="utf-8") as f2:
-                    return toml.load(f2)
+        return load_toml_config(config_path)
     except Exception as e:
         logger.error(f"读取配置文件出错: {e}")
         logger.error(traceback.format_exc())
@@ -1341,8 +1338,9 @@ async def get_plugins_api(username: str = Depends(get_current_username)):
 @app.post("/api/plugins/{plugin_id}/toggle")
 async def toggle_plugin(plugin_id: str, username: str = Depends(get_current_username)):
     # 读取配置
-    with open(config_path, "rb") as f:
-        current_config = tomli.load(f)
+    current_config = load_toml_config(config_path)
+    if not current_config:
+        return {"success": False, "message": "读取配置文件失败"}
     
     disabled_plugins = current_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -1362,16 +1360,11 @@ async def toggle_plugin(plugin_id: str, username: str = Depends(get_current_user
     # 更新配置
     current_config["XYBot"]["disabled-plugins"] = disabled_plugins
     
-    try:
-        # 保存配置 - 使用toml库而不是tomllib
-        with open(config_path, "w", encoding="utf-8") as f:
-            toml.dump(current_config, f)
-        
+    # 保存配置
+    if save_toml_config(config_path, current_config):
         return {"success": True, "message": f"插件 {plugin_id} 已{'启用' if new_status else '禁用'}", "enabled": new_status}
-    except Exception as e:
-        logger.error(f"保存配置失败: {e}")
-        logger.error(traceback.format_exc())
-        return {"success": False, "message": f"切换插件状态失败: {str(e)}"}
+    else:
+        return {"success": False, "message": "保存配置文件失败"}
 
 @app.get("/api/plugins/{plugin_id}/config")
 async def get_plugin_config_api(plugin_id: str, username: str = Depends(get_current_username)):
@@ -1407,8 +1400,9 @@ async def save_plugin_config(
     
     # 启用/禁用插件
     enabled = config_data.pop("enabled", True)
-    with open(config_path, "rb") as f:
-        main_config = tomli.load(f)
+    main_config = load_toml_config(config_path)
+    if not main_config:
+        return {"success": False, "message": "读取主配置文件失败"}
     
     disabled_plugins = main_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -1419,20 +1413,15 @@ async def save_plugin_config(
     
     main_config["XYBot"]["disabled-plugins"] = disabled_plugins
     
-    try:
-        # 保存主配置 - 使用toml库而不是tomllib
-        with open(config_path, "w", encoding="utf-8") as f:
-            toml.dump(main_config, f)
-        
-        # 保存插件配置
-        with open(plugin_config_path, "w", encoding="utf-8") as f:
-            toml.dump(config_data["config"], f)
-        
+    # 保存主配置
+    if not save_toml_config(config_path, main_config):
+        return {"success": False, "message": "保存主配置文件失败"}
+    
+    # 保存插件配置
+    if save_toml_config(plugin_config_path, config_data["config"]):
         return {"success": True, "message": "配置已保存"}
-    except Exception as e:
-        logger.error(f"保存插件配置失败: {e}")
-        logger.error(traceback.format_exc())
-        return {"success": False, "message": f"保存配置失败: {str(e)}"}
+    else:
+        return {"success": False, "message": "保存插件配置文件失败"}
 
 @app.post("/api/plugins/install")
 async def install_plugin_api(
@@ -2119,8 +2108,9 @@ async def get_settings_api(username: str = Depends(get_current_username)):
     """获取系统设置API接口"""
     try:
         # 读取现有配置
-        with open(config_path, "rb") as f:
-            system_config = tomli.load(f)
+        system_config = load_toml_config(config_path)
+        if not system_config:
+            return {"success": False, "message": "读取配置文件失败"}
         
         return {"success": True, "data": system_config}
     except Exception as e:

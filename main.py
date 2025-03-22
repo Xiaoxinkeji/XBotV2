@@ -2,7 +2,6 @@ import asyncio
 import os
 import sys
 import time
-import tomllib
 import traceback
 import threading
 from pathlib import Path
@@ -12,6 +11,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from bot_core import bot_core
+from utils.config_utils import load_toml_config
 
 
 def is_api_message(record):
@@ -49,8 +49,7 @@ async def main():
     
     # 读取配置文件
     config_path = script_dir / "main_config.toml"
-    with open(config_path, "rb") as f:
-        config = tomllib.load(f)
+    config = load_toml_config(config_path)
 
     # 检查是否启用自动重启
     auto_restart = config.get("XYBot", {}).get("auto-restart", False)
