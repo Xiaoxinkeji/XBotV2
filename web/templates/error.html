@@ -52,13 +52,12 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 30秒后自动返回首页（仅当是5xx错误时）
-        const statusCode = {{ status_code|default(0) }};
-        if (statusCode >= 500) {
-            setTimeout(function() {
-                window.location.href = '/';
-            }, 30000); // 30秒
-        }
+        // 5秒后自动返回首页（仅当是5xx错误时）
+        {% if status_code >= 500 %}
+        setTimeout(function() {
+            window.location.href = '/';
+        }, 30000); // 30秒
+        {% endif %}
     });
 </script>
 {% endblock %} 

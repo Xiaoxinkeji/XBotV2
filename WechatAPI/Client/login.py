@@ -147,7 +147,7 @@ class LoginMixin(WechatAPIClientBase):
 
             if json_resp.get("Success"):
                 return True
-            elif json_resp.get("Success"):
+            elif json_resp.get("Code") == 0:  # 修正条件判断
                 return False
             else:
                 self.error_handler(json_resp)

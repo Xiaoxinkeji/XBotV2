@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, Form, Body
+﻿from fastapi import FastAPI, Request, Depends, HTTPException, Form, Body
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -25,9 +25,9 @@ from typing import Dict, List, Optional, Any, Union
 import re
 import math
 
-# 改进目录结构检测
+# 改进目录结构检�?
 try:
-    # 获取当前文件所在目录
+    # 获取当前文件所在目�?
     FILE_DIR = os.path.dirname(os.path.abspath(__file__))
     
     # 检测项目根目录
@@ -38,12 +38,12 @@ try:
     else:
         BASE_DIR = FILE_DIR
     
-    # 增加一个健壮性检查 - 验证是否真的是项目根目录
-    # 通过检查几个关键文件/目录来判断
+    # 增加一个健壮性检�?- 验证是否真的是项目根目录
+    # 通过检查几个关键文�?目录来判�?
     if not (os.path.exists(os.path.join(BASE_DIR, "main.py")) or 
             os.path.exists(os.path.join(BASE_DIR, "main_config.toml")) or
             os.path.exists(os.path.join(BASE_DIR, "utils"))):
-        # 尝试再往上一级查找
+        # 尝试再往上一级查�?
         potential_base = os.path.dirname(BASE_DIR)
         if (os.path.exists(os.path.join(potential_base, "main.py")) or 
             os.path.exists(os.path.join(potential_base, "main_config.toml")) or
@@ -53,14 +53,14 @@ try:
     # 转换为Path对象
     PROJECT_ROOT = Path(BASE_DIR)
     
-    # 记录项目根目录信息
-    print(f"项目根目录: {BASE_DIR}")
+    # 记录项目根目录信�?
+    print(f"项目根目�? {BASE_DIR}")
 except Exception as e:
     print(f"确定项目根目录时出错: {e}")
     # 使用当前工作目录作为后备
     BASE_DIR = os.getcwd()
     PROJECT_ROOT = Path(BASE_DIR)
-    print(f"使用当前工作目录作为项目根目录: {BASE_DIR}")
+    print(f"使用当前工作目录作为项目根目�? {BASE_DIR}")
 
 # 导入统一的配置工具
 try:
@@ -76,7 +76,7 @@ except ImportError:
         print(f"导入config_utils失败: {e}")
         # 定义简单的替代函数
         def load_toml_config(path):
-            print(f"使用内置的配置读取功能: {path}")
+            print(f"使用内置的配置读取功�? {path}")
             if not os.path.exists(path):
                 return {}
             try:
@@ -100,7 +100,7 @@ except ImportError:
             except:
                 return False
 
-# 定义模块加载状态
+# 定义模块加载状�?
 MODULES_LOADED = False
 
 # 配置日志
@@ -117,7 +117,7 @@ logging.basicConfig(
     ]
 )
 
-# 机器人上一次状态
+# 机器人上一次状�?
 _last_robot_status = {"is_online": False, "last_check_time": 0}
 
 # 检查机器人状态变化并触发通知
@@ -137,9 +137,9 @@ def check_robot_status_change(robot_status):
     online_title = notification_config.get("online-title", "机器人已上线")
     offline_title = notification_config.get("offline-title", "机器人已掉线")
     
-    # 状态发生变化
+    # 状态发生变�?
     if current_is_online != last_is_online:
-        logger.info(f"机器人状态变化: {'上线' if current_is_online else '离线'}")
+        logger.info(f"机器人状态变�? {'上线' if current_is_online else '离线'}")
         
         # 如果启用了通知且PushPlus令牌有效
         if enable_notification and pushplus_token:
@@ -152,17 +152,17 @@ def check_robot_status_change(robot_status):
                 active_plugins = [p for p in plugins if p.get("enabled", False)]
                 
                 content = f"""
-                ### 服务器信息
+                ### 服务器信�?
                 - 系统: {system_info.get('os', 'Unknown')}
                 - 运行时间: {system_info.get('uptime', 'Unknown')}
-                - CPU使用率: {system_info.get('cpu_usage', 0)}%
-                - 内存使用率: {system_info.get('memory_usage', 0)}%
+                - CPU使用�? {system_info.get('cpu_usage', 0)}%
+                - 内存使用�? {system_info.get('memory_usage', 0)}%
                 
                 ### 微信账号
                 - 昵称: {user_info.get('nickname', 'Unknown')}
                 - 微信ID: {user_info.get('wxid', 'Unknown')}
                 
-                ### 已激活插件({len(active_plugins)})
+                ### 已激活插�?{len(active_plugins)})
                 {', '.join([p.get('name', 'Unknown') for p in active_plugins])}
                 """
                 
@@ -180,14 +180,14 @@ def check_robot_status_change(robot_status):
                 last_active_time = _last_robot_status.get("last_active_time", "未知")
                 
                 content = f"""
-                ### 服务器信息
+                ### 服务器信�?
                 - 系统: {system_info.get('os', 'Unknown')}
                 - 运行时间: {system_info.get('uptime', 'Unknown')}
                 
-                ### 最后在线信息
+                ### 最后在线信�?
                 - 昵称: {user_info.get('nickname', 'Unknown')}
                 - 微信ID: {user_info.get('wxid', 'Unknown')}
-                - 最后活跃: {last_active_time}
+                - 最后活�? {last_active_time}
                 """
                 
                 # 发送离线通知
@@ -197,7 +197,7 @@ def check_robot_status_change(robot_status):
                 except Exception as e:
                     logger.error(f"发送离线通知失败: {e}")
     
-    # 更新上一次状态
+    # 更新上一次状�?
     _last_robot_status = robot_status
     _last_robot_status["last_check_time"] = time.time()
 
@@ -227,7 +227,7 @@ def send_notification(title, content):
         if result.get("code") == 200:
             return True
         else:
-            logger.warning(f"PushPlus通知发送失败: {result.get('msg', '未知错误')}")
+            logger.warning(f"PushPlus通知发送失�? {result.get('msg', '未知错误')}")
             return False
     except Exception as e:
         logger.error(f"发送通知出错: {e}")
@@ -237,7 +237,7 @@ def send_notification(title, content):
 def get_message_stats():
     """获取消息统计信息"""
     try:
-        # 假设我们有一个消息数据库，从中获取统计信息
+        # 假设我们有一个消息数据库，从中获取统计信�?
         # 这里简化为返回固定结构
         current_time = datetime.now()
         today = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -246,7 +246,7 @@ def get_message_stats():
         # 尝试从数据库获取消息统计
         try:
             # 这部分代码应该根据实际的数据库结构来编写
-            # 这里只是一个示例框架
+            # 这里只是一个示例框�?
             import sqlite3
             conn = sqlite3.connect(str(Path(BASE_DIR) / "database" / "message.db"))
             cursor = conn.cursor()
@@ -260,7 +260,7 @@ def get_message_stats():
                           (yesterday.timestamp(), today.timestamp()))
             yesterday_count = cursor.fetchone()[0]
             
-            # 获取总消息数量
+            # 获取总消息数�?
             cursor.execute("SELECT COUNT(*) FROM messages")
             total_count = cursor.fetchone()[0]
             
@@ -281,7 +281,7 @@ def get_message_stats():
             
         except Exception as db_error:
             logger.warning(f"无法从数据库获取消息统计: {db_error}")
-            # 如果数据库查询失败，返回默认值
+            # 如果数据库查询失败，返回默认�?
             return {
                 "today": 0,
                 "yesterday": 0,
@@ -292,7 +292,7 @@ def get_message_stats():
             }
             
     except Exception as e:
-        logger.error(f"获取消息统计时出错: {e}")
+        logger.error(f"获取消息统计时出�? {e}")
         return {
             "today": 0,
             "yesterday": 0,
@@ -301,15 +301,15 @@ def get_message_stats():
             "error": str(e)
         }
 
-# 确保必要的目录存在
+# 确保必要的目录存�?
 def ensure_directories():
-    """确保必要的目录结构存在"""
-    logger.info("开始检查并创建必要的目录结构...")
+    """确保必要的目录结构存�?""
+    logger.info("开始检查并创建必要的目录结�?..")
     dirs = [
         PROJECT_ROOT / "logs",
         PROJECT_ROOT / "resource",
         PROJECT_ROOT / "resource" / "images",  # 添加图片资源目录
-        PROJECT_ROOT / "resource" / "qrcode",  # 添加二维码目录
+        PROJECT_ROOT / "resource" / "qrcode",  # 添加二维码目�?
         PROJECT_ROOT / "database",
         PROJECT_ROOT / "plugins",
         PROJECT_ROOT / "web" / "templates",
@@ -332,16 +332,16 @@ def ensure_directories():
                 logger.error(traceback.format_exc())
                 
     if created_count > 0:
-        logger.info(f"共创建了 {created_count} 个目录")
+        logger.info(f"共创建了 {created_count} 个目�?)
     else:
         logger.info("所有必要的目录已经存在")
     
-    # 确保templates目录中有必要的模板文件
+    # 确保templates目录中有必要的模板文�?
     template_dir = PROJECT_ROOT / "web" / "templates"
     if not list(template_dir.glob("*.html")):
         logger.warning("templates目录为空，可能会导致Web界面无法正常显示")
     
-    # 确保static目录中有必要的静态文件
+    # 确保static目录中有必要的静态文�?
     static_dir = PROJECT_ROOT / "web" / "static"
     css_dir = static_dir / "css"
     js_dir = static_dir / "js"
@@ -352,7 +352,7 @@ def ensure_directories():
     resource_dir = PROJECT_ROOT / "resource"
     if not (resource_dir / "robot_stat.json").exists():
         try:
-            # 创建一个基本的状态文件
+            # 创建一个基本的状态文�?
             with open(resource_dir / "robot_stat.json", "w", encoding="utf-8") as f:
                 json.dump({"status": "offline", "last_update": int(time.time())}, f)
             logger.info("创建了默认的robot_stat.json文件")
@@ -360,6 +360,34 @@ def ensure_directories():
             logger.error(f"创建robot_stat.json失败: {e}")
             
     return True
+
+# 设置工作目录
+ensure_directories()
+
+# 直接读取配置以确定DEBUG模式
+DEBUG = False
+try:
+    # 尝试读取配置文件
+    config_paths = [
+        Path(BASE_DIR) / "main_config.toml",  # 标准路径
+        Path("main_config.toml"),            # 工作目录
+        Path("..") / "main_config.toml",     # 上级目录
+        Path(__file__).parent.parent / "main_config.toml"  # 相对于脚本的路径
+    ]
+    
+    for config_path in config_paths:
+        if config_path.exists():
+            try:
+                config = load_toml_config(config_path)
+                if config and "WebInterface" in config:
+                    DEBUG = config["WebInterface"].get("debug", False)
+                    break
+            except Exception as e:
+                logger.error(f"读取配置文件失败: {e}")
+except Exception as e:
+    logger.error(f"确定DEBUG模式时出�? {e}")
+
+logger.info(f"Debug模式: {'开�? if DEBUG else '关闭'}")
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -372,25 +400,25 @@ app = FastAPI(
 
 # 会话密钥
 SESSION_SECRET_KEY = secrets.token_urlsafe(32)
-# 如果需要持久密钥，可以从配置中加载或存储到文件中
+# 如果需要持久密钥，可以从配置中加载或存储到文件�?
 try:
     session_key_file = os.path.join(BASE_DIR, "resource", "session_key.txt")
     if os.path.exists(session_key_file):
         with open(session_key_file, "r") as f:
             SESSION_SECRET_KEY = f.read().strip()
     else:
-        # 创建目录(如果不存在)
+        # 创建目录(如果不存�?
         os.makedirs(os.path.dirname(session_key_file), exist_ok=True)
-        # 保存密钥到文件
+        # 保存密钥到文�?
         with open(session_key_file, "w") as f:
             f.write(SESSION_SECRET_KEY)
 except Exception as e:
-    logger.warning(f"处理会话密钥文件时出错: {e}，使用内存中的随机密钥")
+    logger.warning(f"处理会话密钥文件时出�? {e}，使用内存中的随机密�?)
 
 # 添加异常处理程序
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """处理HTTP异常，如果是认证错误则重定向到登录页面"""
+    """处理HTTP异常，如果是认证错误则重定向到登录页�?""
     if exc.status_code == 401:
         # 对于API路由返回JSON响应
         if request.url.path.startswith("/api/"):
@@ -416,7 +444,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     except Exception:
         pass
     
-    # 为非API请求返回友好的错误页面
+    # 为非API请求返回友好的错误页�?
     return templates.TemplateResponse(
         "error.html", 
         {
@@ -424,6 +452,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "status_code": exc.status_code, 
             "error": f"错误 {exc.status_code}", 
             "message": exc.detail,
+            "error_details": traceback.format_exc() if DEBUG else None,
             "admin_name": admin_name
         },
         status_code=exc.status_code
@@ -431,7 +460,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """处理所有其他异常"""
+    """处理所有其他异�?""
     # 记录异常
     logger.error(f"未处理的异常: {exc}")
     logger.error(traceback.format_exc())
@@ -440,7 +469,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     if request.url.path.startswith("/api/"):
         return JSONResponse(
             status_code=500,
-            content={"detail": "内部服务器错误", "message": str(exc), "success": False}
+            content={"detail": "内部服务器错�?, "message": str(exc), "success": False}
         )
     
     # 尝试获取用户名（如果已登录）
@@ -457,7 +486,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         {
             "request": request, 
             "status_code": 500, 
-            "error": "内部服务器错误", 
+            "error": "内部服务器错�?, 
             "message": str(exc),
             "error_details": traceback.format_exc() if DEBUG else None,
             "admin_name": admin_name
@@ -465,11 +494,11 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=500
     )
 
-# 添加会话中间件
+# 添加会话中间�?
 app.add_middleware(
     SessionMiddleware, 
     secret_key=SESSION_SECRET_KEY,
-    max_age=86400,  # 会话有效期24小时
+    max_age=86400,  # 会话有效�?4小时
 )
 
 # 确保目录结构存在
@@ -518,26 +547,26 @@ def setup_templates_and_static():
         <h1>XBotV2 系统错误</h1>
         <p>模板文件未找到。请确保项目安装正确，并包含所有必要的文件。</p>
         <div class="info">
-            <p>可能的解决方法:</p>
+            <p>可能的解决方法：</p>
             <ul>
-                <li>确保 web/templates 目录存在并包含必要的模板文件</li>
-                <li>检查项目是否完整克隆或下载</li>
+                <li>确认项目已完整克隆/下载</li>
+                <li>检查web/templates目录是否存在</li>
                 <li>尝试重新启动应用</li>
             </ul>
         </div>
     </div>
 </body>
 </html>""")
-            logger.info("已创建一个基本的错误模板文件")
+            logger.info("已创建一个基本的模板文件")
         except Exception as e:
-            logger.error(f"创建错误模板文件失败: {e}")
+            logger.error(f"创建基本模板文件失败: {e}")
     
     # 静态文件目录处理
     static_paths = [
-        PROJECT_ROOT / "web" / "static",  # 标准路径
-        PROJECT_ROOT / "static",          # 备选路径
-        Path(__file__).parent / "static", # 相对于当前脚本的路径
-        Path("static")                    # 相对于工作目录的路径
+        PROJECT_ROOT / "web" / "static",   # 标准路径
+        PROJECT_ROOT / "static",           # 备选路径
+        Path(__file__).parent / "static",  # 相对于当前脚本的路径
+        Path("static")                     # 相对于工作目录的路径
     ]
     
     static_path = None
@@ -551,23 +580,18 @@ def setup_templates_and_static():
         # 创建一个静态文件目录作为备用
         logger.error("未找到任何可用的静态文件目录，创建一个默认目录")
         static_path = PROJECT_ROOT / "web" / "static"
-        css_dir = static_path / "css"
-        js_dir = static_path / "js"
-        
         static_path.mkdir(parents=True, exist_ok=True)
-        css_dir.mkdir(exist_ok=True)
-        js_dir.mkdir(exist_ok=True)
+        css_dir = static_path / "css"
+        css_dir.mkdir(parents=True, exist_ok=True)
         
         # 创建一个基本的CSS文件
         try:
-            with open(css_dir / "fallback.css", "w", encoding="utf-8") as f:
-                f.write("""
-body {
+            with open(css_dir / "style.css", "w", encoding="utf-8") as f:
+                f.write("""body {
     font-family: Arial, sans-serif;
-    line-height: 1.6;
-    margin: 0;
-    padding: 20px;
     background-color: #f5f5f5;
+    margin: 0;
+    padding: 0;
 }
 .container {
     max-width: 1200px;
@@ -593,14 +617,14 @@ h1, h2, h3 {
     
     return templates_path, static_path
 
-# 设置模板和静态文件
+# 设置模板和静态文�?
 templates_path, static_path = setup_templates_and_static()
 templates = Jinja2Templates(directory=str(templates_path))
 
-# 挂载静态文件目录
+# 挂载静态文件目�?
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-# 获取系统运行时间的辅助函数
+# 获取系统运行时间的辅助函�?
 def get_uptime():
     """获取系统运行时间"""
     try:
@@ -609,7 +633,7 @@ def get_uptime():
         days, seconds = uptime.days, uptime.seconds
         hours = seconds // 3600
         minutes = (seconds % 3600) // 60
-        return f"{days}天 {hours}小时 {minutes}分钟"
+        return f"{days}�?{hours}小时 {minutes}分钟"
     except Exception as e:
         logger.error(f"获取系统运行时间出错: {e}")
         return "未知"
@@ -659,7 +683,7 @@ def get_config():
                 logger.info(f"找到配置文件: {config_path}")
                 loaded_path = config_path
                 
-                # 直接读取文件内容用于日志记录和调试
+                # 直接读取文件内容用于日志记录和调�?
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         file_content = f.read()
@@ -670,12 +694,12 @@ def get_config():
                 # 使用统一配置工具加载TOML
                 config = load_toml_config(config_path)
                 if config:
-                    logger.info(f"从 {config_path} 成功加载配置")
+                    logger.info(f"�?{config_path} 成功加载配置")
                     break
         
-        # 检查配置是否正确加载
+        # 检查配置是否正确加�?
         if not config:
-            logger.error("所有配置文件路径都失败，使用默认配置")
+            logger.error("所有配置文件路径都失败，使用默认配�?)
             config = {
                 "WebInterface": {
                     "username": "admin",
@@ -689,9 +713,9 @@ def get_config():
         else:
             logger.info(f"配置文件 {loaded_path} 加载成功，包含的部分: {list(config.keys())}")
             
-            # 检查并确保WebInterface部分存在且包含必要的值
+            # 检查并确保WebInterface部分存在且包含必要的�?
             if "WebInterface" not in config:
-                logger.warning("配置文件中缺少WebInterface部分，添加默认值")
+                logger.warning("配置文件中缺少WebInterface部分，添加默认�?)
                 config["WebInterface"] = {
                     "username": "admin",
                     "password": "admin123",
@@ -702,7 +726,7 @@ def get_config():
                 }
             else:
                 web_config = config["WebInterface"]
-                # 确保关键配置项存在
+                # 确保关键配置项存�?
                 if "username" not in web_config or not web_config["username"]:
                     web_config["username"] = "admin"
                 if "password" not in web_config or not web_config["password"]:
@@ -719,9 +743,9 @@ def get_config():
         return config
         
     except Exception as e:
-        logger.error(f"获取配置时出错: {e}")
+        logger.error(f"获取配置时出�? {e}")
         logger.error(traceback.format_exc())
-        # 返回默认配置，确保应用可以继续运行
+        # 返回默认配置，确保应用可以继续运�?
         return {
             "WebInterface": {
                 "username": "admin",
@@ -741,7 +765,7 @@ def get_current_username(request: Request):
     try:
         # 检查session是否存在
         if not hasattr(request, "session"):
-            logger.error("请求对象没有session属性")
+            logger.error("请求对象没有session属�?)
             raise HTTPException(
                 status_code=401,
                 detail="会话无效",
@@ -775,7 +799,7 @@ def get_current_username(request: Request):
         # 返回通用错误
         raise HTTPException(
             status_code=500,
-            detail=f"内部服务器错误: {str(e)}",
+            detail=f"内部服务器错�? {str(e)}",
         )
 
 @app.post("/auth")
@@ -787,7 +811,7 @@ async def authenticate(request: Request,
         logger.info(f"用户尝试登录: {username}")
         config = get_config()
         
-        # 默认凭据，以防配置文件读取失败
+        # 默认凭据，以防配置文件读取失�?
         default_username = "admin"
         default_password = "admin123"
         
@@ -796,11 +820,11 @@ async def authenticate(request: Request,
             config_username = config["WebInterface"].get("username", default_username)
             config_password = config["WebInterface"].get("password", default_password)
         else:
-            logger.warning("无法从配置中读取用户名和密码，使用默认值")
+            logger.warning("无法从配置中读取用户名和密码，使用默认�?)
             config_username = default_username
             config_password = default_password
             
-        # 清理输入和配置值
+        # 清理输入和配置�?
         username = username.strip()
         password = password.strip()
         config_username = config_username.strip()
@@ -808,11 +832,11 @@ async def authenticate(request: Request,
         
         # 详细登录日志，不记录完整密码
         logger.debug(f"输入的用户名: '{username}', 长度: {len(username)}")
-        logger.debug(f"输入的密码长度: {len(password)}")
+        logger.debug(f"输入的密码长�? {len(password)}")
         logger.debug(f"配置的用户名: '{config_username}', 长度: {len(config_username)}")
-        logger.debug(f"配置的密码长度: {len(config_password)}")
+        logger.debug(f"配置的密码长�? {len(config_password)}")
         
-        # 检查凭据是否匹配
+        # 检查凭据是否匹�?
         if username == config_username and password == config_password:
             logger.info(f"用户 {username} 登录成功")
             # 设置会话
@@ -823,7 +847,7 @@ async def authenticate(request: Request,
             # 重定向到首页
             return RedirectResponse(url="/", status_code=303)
         else:
-            # 尝试使用默认凭据（如果用户未使用配置中的凭据）
+            # 尝试使用默认凭据（如果用户未使用配置中的凭据�?
             if username == default_username and password == default_password and (config_username != default_username or config_password != default_password):
                 logger.warning(f"用户 {username} 使用默认凭据登录成功")
                 # 设置会话
@@ -832,22 +856,22 @@ async def authenticate(request: Request,
                 request.session["login_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
                 # 重定向到首页，但带有警告消息
-                return RedirectResponse(url="/?message=您使用了默认凭据登录，建议更改密码", status_code=303)
+                return RedirectResponse(url="/?message=您使用了默认凭据登录，建议更改密�?, status_code=303)
             
-            logger.warning(f"用户 {username} 登录失败 - 凭据不匹配")
+            logger.warning(f"用户 {username} 登录失败 - 凭据不匹�?)
             if username == config_username:
                 logger.debug("用户名匹配，但密码不匹配")
             
-            # 登录失败，重定向回登录页面
-            return RedirectResponse(url=f"/login?message=用户名或密码不正确", status_code=303)
+            # 登录失败，重定向回登录页�?
+            return RedirectResponse(url=f"/login?message=用户名或密码不正�?, status_code=303)
     except Exception as e:
-        logger.error(f"登录处理过程中出错: {e}")
+        logger.error(f"登录处理过程中出�? {e}")
         logger.error(traceback.format_exc())
         return RedirectResponse(url=f"/login?message=登录处理出错: {str(e)}", status_code=303)
 
 # 检查机器人是否运行
 def is_robot_running():
-    # 检查机器人进程是否在运行
+    # 检查机器人进程是否在运�?
     if platform.system() == "Windows":
         # Windows平台
         for proc in psutil.process_iter(['pid', 'name']):
@@ -892,32 +916,32 @@ def get_system_info():
         
         return system_info
     except Exception as e:
-        logger.error(f"获取系统信息时出错: {e}")
+        logger.error(f"获取系统信息时出�? {e}")
         return {
             "os": f"{platform.system()} {platform.release()}",
             "error": str(e),
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
-# 获取机器人状态
+# 获取机器人状�?
 def get_robot_status():
-    """获取机器人状态"""
+    """获取机器人状�?""
     try:
         # 这里应该是实际检查机器人状态的代码
-        # 为简化，这里返回一个示例状态
+        # 为简化，这里返回一个示例状�?
         return {
             "online": True,
             "wxid": "wxid_example",
-            "nickname": "XBot机器人",
+            "nickname": "XBot机器�?,
             "alias": "XBot",
             "plugin_count": 5,
             "message_count": 100
         }
     except Exception as e:
-        logger.error(f"获取机器人状态出错: {e}")
+        logger.error(f"获取机器人状态出�? {e}")
         return {"online": False, "error": str(e)}
 
-# 获取所有插件列表
+# 获取所有插件列�?
 def get_plugins():
     """获取插件列表"""
     try:
@@ -925,11 +949,11 @@ def get_plugins():
         plugins_dir = Path(BASE_DIR) / "plugins"
         
         if not plugins_dir.exists():
-            logger.warning(f"插件目录不存在: {plugins_dir}")
+            logger.warning(f"插件目录不存�? {plugins_dir}")
             # 创建插件目录
             try:
                 os.makedirs(plugins_dir, exist_ok=True)
-                logger.info(f"已创建插件目录: {plugins_dir}")
+                logger.info(f"已创建插件目�? {plugins_dir}")
             except Exception as e:
                 logger.error(f"创建插件目录失败: {e}")
         
@@ -940,10 +964,10 @@ def get_plugins():
                     plugin = {
                         "name": plugin_name,
                         "enabled": True,  # 默认启用
-                        "description": "无描述信息"
+                        "description": "无描述信�?
                     }
                     
-                    # 尝试读取插件的 info.json 文件获取更多信息
+                    # 尝试读取插件�?info.json 文件获取更多信息
                     info_file = plugin_dir / "info.json"
                     if info_file.exists():
                         try:
@@ -1007,7 +1031,7 @@ async def install_plugin(install_type: str, **kwargs):
             
             # 检查目标目录是否已存在
             if plugin_dir.exists():
-                return {"success": False, "message": f"插件目录 {plugin_name} 已存在"}
+                return {"success": False, "message": f"插件目录 {plugin_name} 已存�?}
             
             # 克隆Git仓库
             subprocess.run(
@@ -1015,14 +1039,14 @@ async def install_plugin(install_type: str, **kwargs):
                 check=True
             )
             
-            # 检查配置文件
+            # 检查配置文�?
             plugin_config = get_plugin_config(plugin_name)
             if not plugin_config:
                 # 创建默认配置
                 default_config = {
                     "plugin": {
                         "name": plugin_name,
-                        "description": "从Git仓库安装的插件",
+                        "description": "从Git仓库安装的插�?,
                         "version": "1.0.0",
                         "author": "未知"
                     }
@@ -1033,7 +1057,7 @@ async def install_plugin(install_type: str, **kwargs):
             
             return {
                 "success": True, 
-                "message": f"插件 {plugin_name} 已安装",
+                "message": f"插件 {plugin_name} 已安�?,
                 "plugin": {
                     "id": plugin_name,
                     "name": plugin_name,
@@ -1045,11 +1069,11 @@ async def install_plugin(install_type: str, **kwargs):
             local_path = kwargs.get("local_path")
             
             if not local_path:
-                return {"success": False, "message": "未提供本地路径"}
+                return {"success": False, "message": "未提供本地路�?}
             
             local_path = Path(local_path)
             if not local_path.exists():
-                return {"success": False, "message": f"路径 {local_path} 不存在"}
+                return {"success": False, "message": f"路径 {local_path} 不存�?}
             
             if not local_path.is_dir():
                 return {"success": False, "message": f"{local_path} 不是目录"}
@@ -1060,12 +1084,12 @@ async def install_plugin(install_type: str, **kwargs):
             
             # 检查目标目录是否已存在
             if plugin_dir.exists():
-                return {"success": False, "message": f"插件目录 {plugin_name} 已存在"}
+                return {"success": False, "message": f"插件目录 {plugin_name} 已存�?}
             
             # 复制文件
             shutil.copytree(local_path, plugin_dir)
             
-            # 检查配置文件
+            # 检查配置文�?
             plugin_config = get_plugin_config(plugin_name)
             if not plugin_config:
                 # 创建默认配置
@@ -1083,7 +1107,7 @@ async def install_plugin(install_type: str, **kwargs):
             
             return {
                 "success": True, 
-                "message": f"插件 {plugin_name} 已安装",
+                "message": f"插件 {plugin_name} 已安�?,
                 "plugin": {
                     "id": plugin_name,
                     "name": plugin_name,
@@ -1106,7 +1130,7 @@ async def install_plugin(install_type: str, **kwargs):
             
             # 检查目标目录是否已存在
             if plugin_dir.exists():
-                return {"success": False, "message": f"插件目录 {plugin_name} 已存在"}
+                return {"success": False, "message": f"插件目录 {plugin_name} 已存�?}
             
             # 创建临时目录
             import tempfile
@@ -1127,13 +1151,13 @@ async def install_plugin(install_type: str, **kwargs):
             with zipfile.ZipFile(temp_zip, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
             
-            # 找到主目录
+            # 找到主目�?
             extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
             if len(extracted_dirs) == 1:
-                # 只有一个目录，使用该目录
+                # 只有一个目录，使用该目�?
                 main_dir = os.path.join(temp_dir, extracted_dirs[0])
             else:
-                # 有多个目录，找到包含__init__.py的目录
+                # 有多个目录，找到包含__init__.py的目�?
                 main_dir = None
                 for d in extracted_dirs:
                     if os.path.exists(os.path.join(temp_dir, d, "__init__.py")):
@@ -1147,14 +1171,14 @@ async def install_plugin(install_type: str, **kwargs):
             # 复制文件
             shutil.copytree(main_dir, plugin_dir)
             
-            # 检查配置文件
+            # 检查配置文�?
             plugin_config = get_plugin_config(plugin_name)
             if not plugin_config:
                 # 创建默认配置
                 default_config = {
                     "plugin": {
                         "name": plugin_name,
-                        "description": "从ZIP文件安装的插件",
+                        "description": "从ZIP文件安装的插�?,
                         "version": "1.0.0",
                         "author": "未知"
                     }
@@ -1168,7 +1192,7 @@ async def install_plugin(install_type: str, **kwargs):
             
             return {
                 "success": True, 
-                "message": f"插件 {plugin_name} 已安装",
+                "message": f"插件 {plugin_name} 已安�?,
                 "plugin": {
                     "id": plugin_name,
                     "name": plugin_name,
@@ -1191,13 +1215,13 @@ def delete_plugin(plugin_id: str, delete_files: bool = False):
     
     disabled_plugins = current_config.get("XYBot", {}).get("disabled-plugins", [])
     
-    # 检查插件是否存在
+    # 检查插件是否存�?
     plugin_dir = PROJECT_ROOT / "plugins" / plugin_id
     if not plugin_dir.is_dir():
-        return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        return {"success": False, "message": f"插件 {plugin_id} 不存�?}
     
     try:
-        # 如果在禁用列表中，移除
+        # 如果在禁用列表中，移�?
         if plugin_id in disabled_plugins:
             disabled_plugins.remove(plugin_id)
             current_config["XYBot"]["disabled-plugins"] = disabled_plugins
@@ -1205,11 +1229,11 @@ def delete_plugin(plugin_id: str, delete_files: bool = False):
             with open(config_path, "w", encoding="utf-8") as f:
                 toml.dump(current_config, f)
         
-        # 如果需要删除文件
+        # 如果需要删除文�?
         if delete_files:
             shutil.rmtree(plugin_dir)
         
-        return {"success": True, "message": f"插件 {plugin_id} 已删除"}
+        return {"success": True, "message": f"插件 {plugin_id} 已删�?}
     except Exception as e:
         logger.error(f"删除插件失败: {e}")
         return {"success": False, "message": f"删除插件失败: {str(e)}"}
@@ -1218,9 +1242,9 @@ def delete_plugin(plugin_id: str, delete_files: bool = False):
 async def update_plugin(plugin_id: str):
     plugin_dir = PROJECT_ROOT / "plugins" / plugin_id
     
-    # 检查插件是否存在
+    # 检查插件是否存�?
     if not plugin_dir.is_dir():
-        return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        return {"success": False, "message": f"插件 {plugin_id} 不存�?}
     
     # 检查是否为Git仓库
     git_dir = plugin_dir / ".git"
@@ -1237,34 +1261,34 @@ async def update_plugin(plugin_id: str):
         )
         current_branch = result.stdout.strip()
         
-        # 拉取最新代码
+        # 拉取最新代�?
         subprocess.run(
             ["git", "-C", str(plugin_dir), "pull", "origin", current_branch],
             check=True
         )
         
-        return {"success": True, "message": f"插件 {plugin_id} 已更新"}
+        return {"success": True, "message": f"插件 {plugin_id} 已更�?}
     except Exception as e:
         logger.error(f"更新插件失败: {e}")
         return {"success": False, "message": f"更新插件失败: {str(e)}"}
 
-# 控制机器人
+# 控制机器�?
 def control_robot(action: str):
     if action not in ["start", "stop", "restart"]:
-        logger.warning(f"收到不支持的机器人控制操作: {action}")
+        logger.warning(f"收到不支持的机器人控制操�? {action}")
         return {"success": False, "message": f"不支持的操作: {action}"}
     
     try:
-        logger.info(f"执行机器人控制操作: {action}")
+        logger.info(f"执行机器人控制操�? {action}")
         
         if action == "start":
             # 检查是否已经在运行
             running, pid = is_robot_running()
             if running:
                 logger.warning("机器人已在运行，无需重复启动")
-                return {"success": False, "message": "机器人已在运行", "status": "running", "pid": pid}
+                return {"success": False, "message": "机器人已在运�?, "status": "running", "pid": pid}
             
-            logger.info("正在启动机器人...")
+            logger.info("正在启动机器�?..")
             
             # 构建启动命令
             cmd = []
@@ -1273,11 +1297,11 @@ def control_robot(action: str):
             else:
                 cmd = ["python3", "main.py"]
             
-            # 添加环境变量，确保使用正确的Python和资源路径
+            # 添加环境变量，确保使用正确的Python和资源路�?
             env = os.environ.copy()
             env["PYTHONPATH"] = str(PROJECT_ROOT)
             
-            # 启动机器人
+            # 启动机器�?
             try:
                 process = subprocess.Popen(
                     cmd, 
@@ -1292,21 +1316,21 @@ def control_robot(action: str):
                 
                 # 等待启动
                 wait_time = 0
-                max_wait = 10  # 最多等待10秒
-                check_interval = 0.5  # 每0.5秒检查一次
+                max_wait = 10  # 最多等�?0�?
+                check_interval = 0.5  # �?.5秒检查一�?
                 
                 while wait_time < max_wait:
                     time.sleep(check_interval)
                     wait_time += check_interval
                     
-                    # 检查进程是否仍在运行
+                    # 检查进程是否仍在运�?
                     if process.poll() is not None:
-                        # 进程已退出
+                        # 进程已退�?
                         stdout, stderr = process.communicate()
-                        logger.error(f"机器人进程启动失败, 退出码: {process.returncode}")
+                        logger.error(f"机器人进程启动失�? 退出码: {process.returncode}")
                         logger.error(f"标准输出: {stdout.decode('utf-8', errors='ignore') if stdout else ''}")
                         logger.error(f"标准错误: {stderr.decode('utf-8', errors='ignore') if stderr else ''}")
-                        return {"success": False, "message": f"启动机器人失败，进程异常退出，返回码: {process.returncode}"}
+                        return {"success": False, "message": f"启动机器人失败，进程异常退出，返回�? {process.returncode}"}
                     
                     # 检查是否已成功启动
                     running, new_pid = is_robot_running()
@@ -1318,31 +1342,31 @@ def control_robot(action: str):
                         
                         return {"success": True, "message": "机器人已启动", "pid": new_pid}
                 
-                # 超过最大等待时间
-                logger.warning("机器人启动超时，但进程仍在运行。请检查日志确认是否正常运行。")
-                return {"success": True, "message": "机器人已启动，但尚未检测到就绪状态，请稍后再检查。", "pid": process.pid}
+                # 超过最大等待时�?
+                logger.warning("机器人启动超时，但进程仍在运行。请检查日志确认是否正常运行�?)
+                return {"success": True, "message": "机器人已启动，但尚未检测到就绪状态，请稍后再检查�?, "pid": process.pid}
                 
             except Exception as e:
                 logger.error(f"启动机器人时发生异常: {e}")
-                return {"success": False, "message": f"启动机器人失败: {str(e)}"}
+                return {"success": False, "message": f"启动机器人失�? {str(e)}"}
                 
         elif action == "stop":
             # 检查是否在运行
             running, pid = is_robot_running()
             if not running:
                 logger.warning("机器人未在运行，无法停止")
-                return {"success": False, "message": "机器人未在运行"}
+                return {"success": False, "message": "机器人未在运�?}
             
             # 先获取当前状态，用于之后的通知
             current_status = get_robot_status()
             
-            logger.info(f"正在停止机器人进程 (PID: {pid})...")
+            logger.info(f"正在停止机器人进�?(PID: {pid})...")
             
             try:
                 # 获取进程对象
                 process = psutil.Process(pid)
                 
-                # 获取子进程
+                # 获取子进�?
                 children = process.children(recursive=True)
                 
                 # 先正常终止主进程
@@ -1366,7 +1390,7 @@ def control_robot(action: str):
                         except psutil.NoSuchProcess:
                             pass
                     
-                    # 等待子进程终止
+                    # 等待子进程终�?
                     gone, still_alive = psutil.wait_procs(children, timeout=3)
                     
                     # 强制终止仍在运行的子进程
@@ -1387,23 +1411,23 @@ def control_robot(action: str):
                 
             except psutil.NoSuchProcess:
                 logger.warning(f"进程 {pid} 不存在，可能已经终止")
-                return {"success": True, "message": "机器人已停止（进程不存在）"}
+                return {"success": True, "message": "机器人已停止（进程不存在�?}
                 
             except Exception as e:
                 logger.error(f"停止机器人时发生异常: {e}")
-                return {"success": False, "message": f"停止机器人失败: {str(e)}"}
+                return {"success": False, "message": f"停止机器人失�? {str(e)}"}
             
         elif action == "restart":
-            logger.info("正在重启机器人...")
+            logger.info("正在重启机器�?..")
             
             # 先获取当前状态，用于之后的通知
             current_status = get_robot_status().copy()
             
-            # 先停止
+            # 先停�?
             stop_result = control_robot("stop")
             if not stop_result["success"]:
-                logger.warning(f"停止机器人失败: {stop_result['message']}")
-                # 如果是因为机器人未运行而停止失败，则继续启动
+                logger.warning(f"停止机器人失�? {stop_result['message']}")
+                # 如果是因为机器人未运行而停止失败，则继续启�?
                 if "未在运行" not in stop_result["message"]:
                     return {"success": False, "message": f"重启失败: {stop_result['message']}"}
             
@@ -1418,21 +1442,21 @@ def control_robot(action: str):
                 logger.info("机器人已成功重启")
                 start_result["message"] = "机器人已重启"
             else:
-                logger.error(f"重启机器人失败: {start_result['message']}")
-                start_result["message"] = f"重启机器人失败: {start_result['message']}"
+                logger.error(f"重启机器人失�? {start_result['message']}")
+                start_result["message"] = f"重启机器人失�? {start_result['message']}"
             
             return start_result
     
     except Exception as e:
-        logger.error(f"控制机器人失败: {e}", exc_info=True)
-        return {"success": False, "message": f"控制机器人失败: {str(e)}"}
+        logger.error(f"控制机器人失�? {e}", exc_info=True)
+        return {"success": False, "message": f"控制机器人失�? {str(e)}"}
 
 # 获取二维码URL
 def get_qrcode_from_logs():
     """从最新的日志文件中获取登录二维码URL"""
     logger.info("开始从日志中查找二维码URL")
     
-    # 尝试多个可能的日志位置
+    # 尝试多个可能的日志位�?
     possible_log_dirs = [
         Path(PROJECT_ROOT) / "logs",
         Path(PROJECT_ROOT) / "log",
@@ -1448,21 +1472,21 @@ def get_qrcode_from_logs():
     for log_dir in possible_log_dirs:
         if log_dir.exists() and log_dir.is_dir():
             logger.info(f"搜索日志目录: {log_dir}")
-            # 获取该目录下所有.log文件
+            # 获取该目录下所�?log文件
             files = list(log_dir.glob("*.log"))
             if files:
                 log_files.extend(files)
-                logger.info(f"在 {log_dir} 发现 {len(files)} 个日志文件")
+                logger.info(f"�?{log_dir} 发现 {len(files)} 个日志文�?)
     
     if not log_files:
-        logger.warning("未找到任何日志文件")
+        logger.warning("未找到任何日志文�?)
         return None
     
     # 按修改时间排序，最新的优先
     log_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     
     if log_files:
-        logger.info(f"共找到 {len(log_files)} 个日志文件，按修改时间排序")
+        logger.info(f"共找�?{len(log_files)} 个日志文件，按修改时间排�?)
     else:
         logger.warning("没有找到任何日志文件")
         return None
@@ -1470,42 +1494,42 @@ def get_qrcode_from_logs():
     # 从最新的日志文件开始查找二维码URL
     qr_pattern = re.compile(r'(https?://[^\s]+\.png|https?://[^\s]+weixin[^\s]+)')
     
-    for log_file in log_files[:5]:  # 只检查最新的5个文件
+    for log_file in log_files[:5]:  # 只检查最新的5个文�?
         try:
-            logger.info(f"检查日志文件: {log_file}")
+            logger.info(f"检查日志文�? {log_file}")
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
             
-            # 倒序查找，最新的日志条目在文件末尾
+            # 倒序查找，最新的日志条目在文件末�?
             for line in reversed(lines):
-                if "二维码" in line or "qrcode" in line.lower() or "weixin" in line.lower() or ".png" in line:
+                if "二维�? in line or "qrcode" in line.lower() or "weixin" in line.lower() or ".png" in line:
                     match = qr_pattern.search(line)
                     if match:
                         qr_url = match.group(0)
                         logger.info(f"在日志中找到二维码URL: {qr_url[:30]}...")
                         return qr_url
         except Exception as e:
-            logger.error(f"读取日志文件 {log_file} 时出错: {e}")
+            logger.error(f"读取日志文件 {log_file} 时出�? {e}")
             continue
     
     logger.warning("在所有日志文件中未找到二维码URL")
     return None
 
-# 获取最近日志内容
+# 获取最近日志内�?
 def get_recent_logs(limit=10, search=None, level=None):
     global _logs_cache
     
-    # 确保_logs_cache包含所有必需的字段
+    # 确保_logs_cache包含所有必需的字�?
     if not _logs_cache:
         _logs_cache = {
             'last_update': 0,
             'logs': [],
-            'cache_timeout': 5  # 默认缓存超时时间为5秒
+            'cache_timeout': 5  # 默认缓存超时时间�?�?
         }
     elif 'cache_timeout' not in _logs_cache:
         _logs_cache['cache_timeout'] = 5
     
-    # 检查缓存是否有效
+    # 检查缓存是否有�?
     current_time = time.time()
     if (_logs_cache and 
         'last_update' in _logs_cache and
@@ -1518,7 +1542,7 @@ def get_recent_logs(limit=10, search=None, level=None):
     
     logs = []
     
-    # 可能的日志目录
+    # 可能的日志目�?
     log_dirs = ['logs', 'log', '../logs', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')]
     
     # 添加绝对路径
@@ -1547,14 +1571,14 @@ def get_recent_logs(limit=10, search=None, level=None):
                 logs.append({
                     "time": time.strftime('%Y-%m-%d %H:%M:%S'), 
                     "level": "ERROR", 
-                    "content": f"搜索日志文件时出错 {log_dir}/{pattern}: {str(e)}"
+                    "content": f"搜索日志文件时出�?{log_dir}/{pattern}: {str(e)}"
                 })
     
     if not log_files:
-        # 如果没有找到日志文件，返回提示信息
+        # 如果没有找到日志文件，返回提示信�?
         sample_logs = []
         
-        # 添加示例日志和警告
+        # 添加示例日志和警�?
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
         sample_logs.append({
             "time": current_time, 
@@ -1578,7 +1602,7 @@ def get_recent_logs(limit=10, search=None, level=None):
         sample_logs.append({
             "time": current_time, 
             "level": "WARNING", 
-            "content": "请确保XYBot正在运行并生成日志文件"
+            "content": "请确保XYBot正在运行并生成日志文�?
         })
         
         # 添加示例二维码URL
@@ -1604,30 +1628,30 @@ def get_recent_logs(limit=10, search=None, level=None):
     # 读取最新的日志文件内容
     logs = []
     
-    # 最多读取前5个日志文件
+    # 最多读取前5个日志文�?
     for log_file in log_files[:5]:
         try:
             # 获取文件大小
             file_size = os.path.getsize(log_file)
             
-            # 如果文件太大，只读取末尾的部分
-            read_size = min(file_size, 50 * 1024)  # 最多读取50KB
+            # 如果文件太大，只读取末尾的部�?
+            read_size = min(file_size, 50 * 1024)  # 最多读�?0KB
             
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                 if read_size < file_size:
                     f.seek(file_size - read_size)
-                    # 丢弃第一行，因为可能是不完整的
+                    # 丢弃第一行，因为可能是不完整�?
                     f.readline()
                 
                 lines = f.readlines()
                 
-                # 处理每一行日志
+                # 处理每一行日�?
                 for line in lines:
                     line = line.strip()
                     if not line:
                         continue
                     
-                    # 尝试解析日志行
+                    # 尝试解析日志�?
                     log_entry = parse_log_line(line)
                     if log_entry:
                         logs.append(log_entry)
@@ -1640,18 +1664,18 @@ def get_recent_logs(limit=10, search=None, level=None):
                         })
         except Exception as e:
             # 记录读取日志文件时的错误
-            logger.error(f"读取日志文件 {log_file} 时出错: {str(e)}")
+            logger.error(f"读取日志文件 {log_file} 时出�? {str(e)}")
             logs.append({
                 "time": time.strftime('%Y-%m-%d %H:%M:%S'),
                 "level": "ERROR",
-                "content": f"读取日志文件 {os.path.basename(log_file)} 时出错: {str(e)}"
+                "content": f"读取日志文件 {os.path.basename(log_file)} 时出�? {str(e)}"
             })
     
     # 按时间排序，最新的在前
     logs.sort(key=lambda x: x.get('time', ''), reverse=True)
     
-    # 记录找到的日志数量
-    logger.info(f"API获取到 {len(logs)} 条日志")
+    # 记录找到的日志数�?
+    logger.info(f"API获取�?{len(logs)} 条日�?)
     
     # 更新缓存
     _logs_cache = {
@@ -1664,7 +1688,7 @@ def get_recent_logs(limit=10, search=None, level=None):
     filtered_logs = filter_logs(logs, search, level) if (search or level) else logs
     return filtered_logs[:limit]
 
-# 解析日志行
+# 解析日志�?
 def parse_log_line(line):
     try:
         # 尝试多种日志格式
@@ -1695,7 +1719,7 @@ def parse_log_line(line):
                 "content": match3.group(3)
             }
         
-        # 格式4: [15:20:45] [INFO] 日志内容 (没有日期的情况)
+        # 格式4: [15:20:45] [INFO] 日志内容 (没有日期的情�?
         match4 = re.match(r'\[(\d{2}:\d{2}:\d{2})\] \[([A-Z]+)\] (.*)', line)
         if match4:
             today = time.strftime('%Y-%m-%d')
@@ -1708,15 +1732,15 @@ def parse_log_line(line):
         # 如果无法匹配任何格式，返回None
         return None
     except Exception as e:
-        logger.error(f"解析日志行出错: {str(e)} - 行内容: {line}")
+        logger.error(f"解析日志行出�? {str(e)} - 行内�? {line}")
         return None
 
 # 路由定义
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, username: str = Depends(get_current_username)):
-    """首页/仪表板"""
+    """首页/仪表�?""
     try:
-        # 获取机器人状态
+        # 获取机器人状�?
         robot_status = get_robot_status()
         
         # 获取系统信息
@@ -1735,7 +1759,7 @@ async def home(request: Request, username: str = Depends(get_current_username)):
         # 获取当前配置信息
         config = get_config()
         
-        logger.info("渲染首页/仪表板页面")
+        logger.info("渲染首页/仪表板页�?)
         return templates.TemplateResponse("index.html", {
             "request": request,
             "robot": robot_status,
@@ -1761,7 +1785,7 @@ async def home(request: Request, username: str = Depends(get_current_username)):
 async def login_page(request: Request, message: str = None):
     """用户登录页面"""
     try:
-        # 检查用户是否已经登录
+        # 检查用户是否已经登�?
         if "authenticated" in request.session and request.session.get("authenticated", False):
             # 已登录，重定向到首页
             return RedirectResponse(url="/", status_code=303)
@@ -1781,7 +1805,7 @@ async def login_page(request: Request, message: str = None):
 
 @app.get("/wechat_login", response_class=HTMLResponse)
 async def wechat_login_page(request: Request, username: str = Depends(get_current_username)):
-    """微信二维码登录页面"""
+    """微信二维码登录页�?""
     try:
         # 获取最新的二维码URL
         qr_link = ""
@@ -1809,16 +1833,16 @@ async def wechat_login_page(request: Request, username: str = Depends(get_curren
 async def plugins_page(request: Request, username: str = Depends(get_current_username)):
     """插件管理页面"""
     try:
-        # 获取所有插件信息
+        # 获取所有插件信�?
         plugins_info = []
         plugins_dir = Path(BASE_DIR) / "plugins"
         
         if not plugins_dir.exists():
-            logger.warning(f"插件目录不存在: {plugins_dir}")
+            logger.warning(f"插件目录不存�? {plugins_dir}")
             # 创建插件目录
             try:
                 os.makedirs(plugins_dir, exist_ok=True)
-                logger.info(f"已创建插件目录: {plugins_dir}")
+                logger.info(f"已创建插件目�? {plugins_dir}")
             except Exception as e:
                 logger.error(f"创建插件目录失败: {e}")
         
@@ -1828,12 +1852,12 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
                     plugin_name = plugin_dir.name
                     plugin_info = {
                         "name": plugin_name,
-                        "status": "已安装",  # 默认状态
+                        "status": "已安�?,  # 默认状�?
                         "version": "未知",
-                        "description": "无描述信息"
+                        "description": "无描述信�?
                     }
                     
-                    # 尝试读取插件的 info.json 文件获取更多信息
+                    # 尝试读取插件�?info.json 文件获取更多信息
                     info_file = plugin_dir / "info.json"
                     if info_file.exists():
                         try:
@@ -1841,11 +1865,11 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
                                 info_data = json.load(f)
                                 plugin_info.update(info_data)
                         except Exception as e:
-                            logger.error(f"读取插件 {plugin_name} 的信息出错: {e}")
+                            logger.error(f"读取插件 {plugin_name} 的信息出�? {e}")
                     
                     plugins_info.append(plugin_info)
         
-        logger.info(f"渲染插件页面，共{len(plugins_info)}个插件")
+        logger.info(f"渲染插件页面，共{len(plugins_info)}个插�?)
         return templates.TemplateResponse("plugins.html", {
             "request": request, 
             "plugins": plugins_info,
@@ -1854,7 +1878,7 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
     except Exception as e:
         logger.error(f"渲染插件页面出错: {e}")
         logger.error(traceback.format_exc())
-        # 返回错误页面或基本插件页面
+        # 返回错误页面或基本插件页�?
         return templates.TemplateResponse("plugins.html", {
             "request": request, 
             "plugins": [],
@@ -1866,7 +1890,7 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
 async def logs_page(request: Request, username: str = Depends(get_current_username)):
     """日志查看页面"""
     try:
-        # 获取最近20条日志
+        # 获取最�?0条日�?
         logs = get_recent_logs(20)
         
         # 确保每条日志都包含必要的字段
@@ -1880,7 +1904,7 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
                     log["level"] = "INFO"
                 formatted_logs.append(log)
         
-        logger.info(f"渲染日志页面，共{len(formatted_logs)}条日志")
+        logger.info(f"渲染日志页面，共{len(formatted_logs)}条日�?)
         return templates.TemplateResponse("logs.html", {
             "request": request, 
             "logs": formatted_logs,
@@ -1889,13 +1913,13 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
     except Exception as e:
         logger.error(f"渲染日志页面出错: {e}")
         logger.error(traceback.format_exc())
-        # 返回错误页面或基本日志页面
+        # 返回错误页面或基本日志页�?
         return templates.TemplateResponse("logs.html", {
             "request": request, 
             "logs": [
                 {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                  "level": "ERROR", 
-                 "message": f"加载日志时出错: {str(e)}"}
+                 "message": f"加载日志时出�? {str(e)}"}
             ],
             "error": str(e),
             "admin_name": username
@@ -1905,7 +1929,7 @@ async def logs_page(request: Request, username: str = Depends(get_current_userna
 async def settings_page(request: Request, username: str = Depends(get_current_username)):
     """系统设置页面"""
     try:
-        # 使用通用的配置读取函数
+        # 使用通用的配置读取函�?
         system_config = get_config()
         if not system_config:
             logger.error("获取配置失败")
@@ -1944,21 +1968,21 @@ async def logout(request: Request):
         logger.error(f"登出处理出错: {e}")
         logger.error(traceback.format_exc())
     finally:
-        # 无论发生什么错误，都确保重定向到登录页面
+        # 无论发生什么错误，都确保重定向到登录页�?
         return RedirectResponse(url="/login", status_code=303)
 
-# 为兼容性保留其他登出路由
+# 为兼容性保留其他登出路�?
 @app.get("/logout2")
 @app.get("/logout3")
 async def logout_alt(request: Request):
-    """兼容性路由，重定向到主登出路由"""
+    """兼容性路由，重定向到主登出路�?""
     return await logout(request)
 
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
     """获取系统状态API接口"""
     try:
-        # 获取机器人状态
+        # 获取机器人状�?
         robot_status = get_robot_status()
         
         # 获取系统信息
@@ -1969,7 +1993,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
             "uptime": int(time.time() - psutil.boot_time())
         }
         
-        # 获取Redis连接状态
+        # 获取Redis连接状�?
         try:
             # 检查是否可以使用socket模块
             has_socket = True
@@ -1980,7 +2004,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
             
             # 使用socket尝试连接Redis
             redis_running = False
-            redis_error = "未检测到Socket库"
+            redis_error = "未检测到Socket�?
             if has_socket:
                 # 尝试简单检查Redis连接
                 redis_host = config.get("WechatAPIServer", {}).get("redis-host", "127.0.0.1")
@@ -1994,7 +2018,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
                     redis_error = None
                 except Exception as e:
                     redis_running = False
-                    redis_error = f"无法连接到Redis服务器: {redis_host}:{redis_port} - {str(e)}"
+                    redis_error = f"无法连接到Redis服务�? {redis_host}:{redis_port} - {str(e)}"
                     logger.warning(f"Redis连接失败: {redis_error}")
                 finally:
                     s.close()
@@ -2034,7 +2058,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
                     if "avatar_url" in profile_data:
                         user_info["avatar_url"] = profile_data["avatar_url"]
         except Exception as e:
-            logger.warning(f"获取头像URL时出错: {e}")
+            logger.warning(f"获取头像URL时出�? {e}")
         
         # 获取消息统计
         message_stats = get_message_stats()
@@ -2042,7 +2066,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
         # 检查机器人状态变化，触发通知
         check_robot_status_change(robot_status)
         
-        # 返回完整状态信息
+        # 返回完整状态信�?
         return {
             "robot": robot_status,
             "system": system_info,
@@ -2057,7 +2081,7 @@ async def get_status_api(username: str = Depends(get_current_username)):
             "robot": {"online": False, "error": str(e)},
             "system": {"error": "获取系统信息失败"},
             "plugins": {"total": 0, "enabled": 0, "disabled": 0},
-            "user": {"wxid": "", "nickname": "未登录", "alias": ""},
+            "user": {"wxid": "", "nickname": "未登�?, "alias": ""},
             "messages": {"total": 0, "today": 0}
         }
 
@@ -2075,12 +2099,12 @@ async def toggle_plugin(plugin_id: str, username: str = Depends(get_current_user
     
     disabled_plugins = current_config.get("XYBot", {}).get("disabled-plugins", [])
     
-    # 检查插件是否存在
+    # 检查插件是否存�?
     plugin_dir = PROJECT_ROOT / "plugins" / plugin_id
     if not plugin_dir.is_dir():
-        return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        return {"success": False, "message": f"插件 {plugin_id} 不存�?}
     
-    # 切换状态
+    # 切换状�?
     if plugin_id in disabled_plugins:
         disabled_plugins.remove(plugin_id)
         new_status = True  # 启用
@@ -2104,7 +2128,7 @@ async def get_plugin_config_api(plugin_id: str, username: str = Depends(get_curr
     plugin = next((p for p in plugins if p["id"] == plugin_id), None)
     
     if not plugin:
-        return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        return {"success": False, "message": f"插件 {plugin_id} 不存�?}
     
     # 获取配置
     config_data = get_plugin_config(plugin_id) or {}
@@ -2124,16 +2148,16 @@ async def save_plugin_config(
 ):
     plugin_config_path = PROJECT_ROOT / "plugins" / plugin_id / "config.toml"
     
-    # 检查插件目录
+    # 检查插件目�?
     plugin_dir = PROJECT_ROOT / "plugins" / plugin_id
     if not plugin_dir.is_dir():
-        return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+        return {"success": False, "message": f"插件 {plugin_id} 不存�?}
     
     # 启用/禁用插件
     enabled = config_data.pop("enabled", True)
     main_config = load_toml_config(config_path)
     if not main_config:
-        return {"success": False, "message": "读取主配置文件失败"}
+        return {"success": False, "message": "读取主配置文件失�?}
     
     disabled_plugins = main_config.get("XYBot", {}).get("disabled-plugins", [])
     
@@ -2144,13 +2168,13 @@ async def save_plugin_config(
     
     main_config["XYBot"]["disabled-plugins"] = disabled_plugins
     
-    # 保存主配置
+    # 保存主配�?
     if not save_toml_config(config_path, main_config):
-        return {"success": False, "message": "保存主配置文件失败"}
+        return {"success": False, "message": "保存主配置文件失�?}
     
     # 保存插件配置
     if save_toml_config(plugin_config_path, config_data["config"]):
-        return {"success": True, "message": "配置已保存"}
+        return {"success": True, "message": "配置已保�?}
     else:
         return {"success": False, "message": "保存插件配置文件失败"}
 
@@ -2204,7 +2228,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
             # 导入WechatAPI
             import WechatAPI
             
-            # 创建WechatAPI客户端
+            # 创建WechatAPI客户�?
             api_config = config.get("WechatAPIServer", {})
             client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
             
@@ -2227,7 +2251,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
             if not device_id:
                 device_id = client.create_device_id()
             
-            # 获取二维码
+            # 获取二维�?
             uuid, url = await client.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
             
             return {
@@ -2241,19 +2265,19 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
         
         elif login_method == "awaken":
             # 唤醒登录逻辑
-            logger.info("开始处理唤醒登录请求")
+            logger.info("开始处理唤醒登录请�?)
             
-            # 先尝试控制机器人启动(如果未运行)
+            # 先尝试控制机器人启动(如果未运�?
             robot_running = is_robot_running()
-            logger.info(f"机器人运行状态: {'运行中' if robot_running else '未运行'}")
+            logger.info(f"机器人运行状�? {'运行�? if robot_running else '未运�?}")
             
             if not robot_running:
-                logger.info("机器人未运行，尝试启动")
+                logger.info("机器人未运行，尝试启�?)
                 control_robot("start")
-                # 等待机器人启动
+                # 等待机器人启�?
                 start_success = False
-                for i in range(15):  # 增加等待时间到15秒
-                    logger.info(f"等待机器人启动...第{i+1}次检查")
+                for i in range(15):  # 增加等待时间�?5�?
+                    logger.info(f"等待机器人启�?..第{i+1}次检�?)
                     if is_robot_running():
                         start_success = True
                         logger.info("机器人已成功启动")
@@ -2261,7 +2285,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                     await asyncio.sleep(1)
                 
                 if not start_success:
-                    logger.warning("机器人启动超时")
+                    logger.warning("机器人启动超�?)
             
             # 从日志中获取二维码URL
             logger.info("尝试从日志中获取二维码URL")
@@ -2269,7 +2293,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
             
             if qrcode_url:
                 logger.info(f"成功从日志中获取到二维码URL: {qrcode_url[:30]}...")
-                # 如果找到二维码URL，使用与扫码登录相同的方式返回
+                # 如果找到二维码URL，使用与扫码登录相同的方式返�?
                 login_uuid = str(uuid.uuid4())
                 return {
                     "success": True,
@@ -2277,10 +2301,10 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                     "url": qrcode_url,
                     "uuid": login_uuid,
                     "device_id": None,
-                    "message": "已从日志中找到最新的登录二维码"
+                    "message": "已从日志中找到最新的登录二维�?
                 }
             else:
-                logger.warning("未从日志中找到二维码URL，尝试唤醒已登录的账号")
+                logger.warning("未从日志中找到二维码URL，尝试唤醒已登录的账�?)
                 # 如果没找到二维码URL，使用原来的唤醒登录逻辑
                 if not MODULES_LOADED:
                     logger.error("模块未加载，无法继续唤醒登录")
@@ -2290,14 +2314,14 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                     # 导入WechatAPI
                     import WechatAPI
                     
-                    # 创建WechatAPI客户端
+                    # 创建WechatAPI客户�?
                     api_config = config.get("WechatAPIServer", {})
                     client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
                     
                     # 获取设备信息
                     robot_stat_path = PROJECT_ROOT / "resource" / "robot_stat.json"
                     if os.path.exists(robot_stat_path):
-                        logger.info(f"读取机器人状态文件: {robot_stat_path}")
+                        logger.info(f"读取机器人状态文�? {robot_stat_path}")
                         try:
                             with open(robot_stat_path, "r") as f:
                                 robot_stat = json.load(f)
@@ -2306,9 +2330,9 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                             device_id = robot_stat.get("device_id", None)
                             wxid = robot_stat.get("wxid", None)
                             
-                            logger.info(f"机器人状态信息: device_name={device_name}, device_id={device_id}, wxid={wxid}")
+                            logger.info(f"机器人状态信�? device_name={device_name}, device_id={device_id}, wxid={wxid}")
                         except Exception as e:
-                            logger.error(f"读取机器人状态文件失败: {e}")
+                            logger.error(f"读取机器人状态文件失�? {e}")
                             device_name = None
                             device_id = None
                             wxid = None
@@ -2319,7 +2343,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                         wxid = None
                     
                     if not wxid:
-                        logger.error("无法找到wxid信息，无法唤醒登录")
+                        logger.error("无法找到wxid信息，无法唤醒登�?)
                         login_uuid = str(uuid.uuid4())
                         return {
                             "success": False, 
@@ -2337,7 +2361,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                         logger.info(f"唤醒登录成功，uuid={uuid}")
                         return {"success": True, "method": "awaken", "uuid": uuid}
                     else:
-                        logger.warning(f"未找到账号 {wxid} 的缓存信息")
+                        logger.warning(f"未找到账�?{wxid} 的缓存信�?)
                         login_uuid = str(uuid.uuid4())
                         return {
                             "success": False, 
@@ -2346,7 +2370,7 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
                             "need_manual": True  # 告诉前端可能需要手动输入URL
                         }
                 except Exception as e:
-                    logger.error(f"唤醒登录过程中出现异常: {e}")
+                    logger.error(f"唤醒登录过程中出现异�? {e}")
                     logger.error(traceback.format_exc())
                     login_uuid = str(uuid.uuid4())
                     return {
@@ -2366,16 +2390,16 @@ async def wechat_login(login_method: str = Form(...), username: str = Depends(ge
 async def check_login_status(uuid: str, device_id: Optional[str] = None, username: str = Depends(get_current_username)):
     try:
         if not MODULES_LOADED:
-            return {"success": False, "message": "模块未加载，无法检查登录状态"}
+            return {"success": False, "message": "模块未加载，无法检查登录状�?}
         
         # 导入WechatAPI
         import WechatAPI
         
-        # 创建WechatAPI客户端
+        # 创建WechatAPI客户�?
         api_config = config.get("WechatAPIServer", {})
         client = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
         
-        # 检查登录状态
+        # 检查登录状�?
         status, data = await client.check_login_uuid(uuid, device_id=device_id)
         
         if status:
@@ -2419,7 +2443,7 @@ async def check_login_status(uuid: str, device_id: Optional[str] = None, usernam
             return {"success": True, "logged_in": False, "message": data}
             
     except Exception as e:
-        return {"success": False, "message": f"检查登录状态失败: {str(e)}"}
+        return {"success": False, "message": f"检查登录状态失�? {str(e)}"}
 
 @app.post("/api/settings/save")
 async def save_settings(config_data: Dict[str, Any] = FastAPIBody(...), username: str = Depends(get_current_username)):
@@ -2439,12 +2463,12 @@ async def save_settings(config_data: Dict[str, Any] = FastAPIBody(...), username
                 for key, value in settings.items():
                     current_config[section][key] = value
             else:
-                # 处理顶级配置项
+                # 处理顶级配置�?
                 current_config[section] = settings
         
         # 保存配置
         if save_toml_config(config_path, current_config):
-            return {"success": True, "message": "设置已保存"}
+            return {"success": True, "message": "设置已保�?}
         else:
             return {"success": False, "message": "保存配置文件失败"}
     except Exception as e:
@@ -2461,16 +2485,16 @@ async def get_logs_api(limit: int = 10, search: str = None, level: str = None, u
         if not logs_dir.exists():
             logs_dir.mkdir(exist_ok=True)
             logger.info(f"创建日志目录: {logs_dir}")
-            # 创建一个初始日志文件，以便前端可以看到一些内容
+            # 创建一个初始日志文件，以便前端可以看到一些内�?
             with open(logs_dir / "XYBot_init.log", "w", encoding="utf-8") as f:
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 初始化日志文件\n")
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | 获取到登录二维码: http://weixin.qq.com/x/oudYJBEvV_gnGKNpZ5gF\n")
         
-        # 检查日志文件数量，如果超过20个，则保留最新的10个
+        # 检查日志文件数量，如果超过20个，则保留最新的10�?
         try:
             manage_log_files(logs_dir)
         except Exception as e:
-            logger.warning(f"管理日志文件时出错: {e}")
+            logger.warning(f"管理日志文件时出�? {e}")
             
         logs = get_recent_logs(limit)
         
@@ -2478,7 +2502,7 @@ async def get_logs_api(limit: int = 10, search: str = None, level: str = None, u
         if search or level:
             logs = filter_logs(logs, search, level)
             
-        logger.info(f"API获取到 {len(logs)} 条日志")
+        logger.info(f"API获取�?{len(logs)} 条日�?)
         return {"success": True, "logs": logs}
     except Exception as e:
         logger.error(f"获取日志失败: {e}")
@@ -2496,7 +2520,7 @@ async def download_logs_api(username: str = Depends(get_current_username)):
         # 找出最新的日志文件
         log_files = list(logs_dir.glob("*.log"))
         if not log_files:
-            return JSONResponse(content={"success": False, "message": "未找到日志文件"}, status_code=404)
+            return JSONResponse(content={"success": False, "message": "未找到日志文�?}, status_code=404)
             
         latest_log = max(log_files, key=lambda f: f.stat().st_mtime)
         
@@ -2507,18 +2531,18 @@ async def download_logs_api(username: str = Depends(get_current_username)):
             media_type="text/plain"
         )
     except Exception as e:
-        logger.error(f"下载日志时出错: {e}")
+        logger.error(f"下载日志时出�? {e}")
         return JSONResponse(content={"success": False, "message": f"下载日志失败: {str(e)}"}, status_code=500)
 
 @app.get("/api/events")
 async def get_events_api(limit: int = 10, username: str = Depends(get_current_username)):
     """获取系统事件"""
     try:
-        # 这里可以从数据库获取系统事件，目前使用日志模拟
+        # 这里可以从数据库获取系统事件，目前使用日志模�?
         logs = get_recent_logs(limit=limit)
         events = []
         
-        # 过滤出重要事件
+        # 过滤出重要事�?
         for log in filter_logs(logs, None, None):
             # 检查是否是重要日志
             if "登录" in (log.get("content") or log.get("message") or ""):
@@ -2534,7 +2558,7 @@ async def get_events_api(limit: int = 10, username: str = Depends(get_current_us
             
         return {"success": True, "events": events}
     except Exception as e:
-        logger.error(f"获取系统事件时出错: {e}")
+        logger.error(f"获取系统事件时出�? {e}")
         return {"success": False, "message": f"获取系统事件失败: {str(e)}"}
 
 def filter_logs(logs, search=None, level=None):
@@ -2544,7 +2568,7 @@ def filter_logs(logs, search=None, level=None):
         
     filtered_logs = logs
     
-    # 按日志级别过滤
+    # 按日志级别过�?
     if level and level.lower() != 'all':
         filtered_logs = [
             log for log in filtered_logs 
@@ -2562,7 +2586,7 @@ def filter_logs(logs, search=None, level=None):
                 content = log.get("content", "") or log.get("message", "")
                 if isinstance(content, str) and search_lower in content.lower():
                     filtered_logs.append(log)
-            # 处理字符串格式日志
+            # 处理字符串格式日�?
             elif isinstance(log, str) and search_lower in log.lower():
                 filtered_logs.append(log)
     
@@ -2574,7 +2598,7 @@ def filter_logs(logs, search=None, level=None):
                 log["content"] = log["message"]
             else:
                 # 设置默认内容
-                log["content"] = "(无内容)"
+                log["content"] = "(无内�?"
     
     return filtered_logs
 
@@ -2583,9 +2607,9 @@ def manage_log_files(logs_dir, max_files=20, keep_files=10):
     try:
         log_files = list(logs_dir.glob("*.log"))
         if len(log_files) > max_files:
-            # 按修改时间排序
+            # 按修改时间排�?
             log_files.sort(key=lambda x: x.stat().st_mtime)
-            # 删除较旧的文件，保留最新的keep_files个
+            # 删除较旧的文件，保留最新的keep_files�?
             for old_file in log_files[:-keep_files]:
                 try:
                     old_file.unlink()
@@ -2593,7 +2617,7 @@ def manage_log_files(logs_dir, max_files=20, keep_files=10):
                 except Exception as e:
                     logger.warning(f"删除旧日志文件时出错: {e}")
     except Exception as e:
-        logger.error(f"管理日志文件时出错: {e}")
+        logger.error(f"管理日志文件时出�? {e}")
         raise
 
 @app.get("/api/plugin_marketplace")
@@ -2644,7 +2668,7 @@ async def get_plugin_details_api(plugin_id: str, username: str = Depends(get_cur
         plugin = repo.get_plugin_details(plugin_id)
         
         if not plugin:
-            return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+            return {"success": False, "message": f"插件 {plugin_id} 不存�?}
         
         return {"success": True, "plugin": plugin}
     except Exception as e:
@@ -2674,7 +2698,7 @@ async def install_marketplace_plugin_api(
     version: str = None,
     username: str = Depends(get_current_username)
 ):
-    """从插件市场安装插件"""
+    """从插件市场安装插�?""
     try:
         # 获取插件仓库实例
         repo = get_plugin_repository()
@@ -2686,7 +2710,7 @@ async def install_marketplace_plugin_api(
         plugin_info = repo.get_plugin_details(plugin_id)
         
         if not plugin_info:
-            return {"success": False, "message": f"插件 {plugin_id} 不存在"}
+            return {"success": False, "message": f"插件 {plugin_id} 不存�?}
         
         # 调用现有的安装插件函数来完成安装
         result = await install_plugin("zip_file", local_file=plugin_file)
@@ -2763,19 +2787,19 @@ async def update_repository_status_api(
     enabled: bool = FastAPIBody(...),
     username: str = Depends(get_current_username)
 ):
-    """更新仓库状态"""
+    """更新仓库状�?""
     try:
         # 获取插件仓库实例
         repo = get_plugin_repository()
         
-        # 更新仓库状态
+        # 更新仓库状�?
         repo.update_repository_status(url, enabled)
         
-        return {"success": True, "message": f"仓库状态更新成功"}
+        return {"success": True, "message": f"仓库状态更新成�?}
     except Exception as e:
-        logger.error(f"更新仓库状态失败: {e}")
+        logger.error(f"更新仓库状态失�? {e}")
         logger.error(traceback.format_exc())
-        return {"success": False, "message": f"更新仓库状态失败: {str(e)}"}
+        return {"success": False, "message": f"更新仓库状态失�? {str(e)}"}
 
 @app.post("/api/plugin_marketplace/rating/{plugin_id}")
 async def add_plugin_rating_api(
@@ -2798,25 +2822,25 @@ async def add_plugin_rating_api(
         logger.error(traceback.format_exc())
         return {"success": False, "message": f"添加评分失败: {str(e)}"}
 
-# 在应用启动时初始化插件仓库
+# 在应用启动时初始化插件仓�?
 @app.on_event("startup")
 async def startup_plugin_repository():
     """启动时初始化插件仓库"""
-    # 确保所有必要目录存在
+    # 确保所有必要目录存�?
     ensure_directories()
     
     try:
         from database.plugin_repository import init_plugin_repository
-        logger.info("初始化插件仓库...")
+        logger.info("初始化插件仓�?..")
         init_plugin_repository()
-        logger.info("插件仓库初始化完成")
+        logger.info("插件仓库初始化完�?)
     except Exception as e:
-        logger.error(f"初始化插件仓库失败: {e}")
+        logger.error(f"初始化插件仓库失�? {e}")
         logger.error(traceback.format_exc())
 
-# 主函数
+# 主函�?
 def start_web_server():
-    """启动Web服务器"""
+    """启动Web服务�?""
     try:
         # 确保目录存在
         ensure_directories()
@@ -2829,14 +2853,14 @@ def start_web_server():
         port = web_config.get("port", 8080)
         debug = web_config.get("debug", False)
         
-        # 确保port是整数
+        # 确保port是整�?
         try:
             port = int(port)
         except (ValueError, TypeError):
-            logger.warning(f"端口配置格式不正确: {port}，使用默认值8080")
+            logger.warning(f"端口配置格式不正�? {port}，使用默认�?080")
             port = 8080
         
-        logger.info(f"启动Web服务器: {host}:{port}，调试模式: {'开启' if debug else '关闭'}")
+        logger.info(f"启动Web服务�? {host}:{port}，调试模�? {'开�? if debug else '关闭'}")
         
         # 记录系统信息
         import platform
@@ -2857,14 +2881,14 @@ def start_web_server():
         except Exception as dep_error:
             logger.warning(f"获取依赖版本信息失败: {dep_error}")
         
-        # 启动服务器
+        # 启动服务�?
         try:
             uvicorn.run("web.app:app", host=host, port=port, reload=debug)
         except Exception as run_error:
             logger.error(f"uvicorn.run失败: {run_error}")
             logger.error(traceback.format_exc())
             
-            # 尝试备选启动方法
+            # 尝试备选启动方�?
             import uvicorn.config
             import asyncio
             config = uvicorn.config.Config(app=app, host=host, port=port)
@@ -2873,11 +2897,11 @@ def start_web_server():
             asyncio.run(server.serve())
             
     except Exception as e:
-        logger.error(f"启动Web服务器失败: {e}")
+        logger.error(f"启动Web服务器失�? {e}")
         logger.error(traceback.format_exc())
         raise
 
-# 在其他页面路由附近添加以下代码
+# 在其他页面路由附近添加以下代�?
 @app.get("/plugin_marketplace", response_class=HTMLResponse)
 async def get_plugin_marketplace_page(request: Request, username: str = Depends(get_current_username)):
     """插件市场页面"""
@@ -2918,42 +2942,42 @@ async def get_messages_api(
     """获取消息列表API接口"""
     try:
         # 获取消息数据
-        # 临时模拟数据，用于前端测试
+        # 临时模拟数据，用于前端测�?
         mock_messages = [
             {
                 "id": "1",
                 "sender": "张三 (wxid_123456)",
-                "content": "你好，这是一条测试消息",
+                "content": "你好，这是一条测试消�?,
                 "type": "text",
-                "timestamp": int(time.time() - 3600 * 5) * 1000  # 5小时前
+                "timestamp": int(time.time() - 3600 * 5) * 1000  # 5小时�?
             },
             {
                 "id": "2",
                 "sender": "李四 (wxid_234567)",
                 "content": "https://example.com/image.jpg",
                 "type": "image",
-                "timestamp": int(time.time() - 3600 * 3) * 1000  # 3小时前
+                "timestamp": int(time.time() - 3600 * 3) * 1000  # 3小时�?
             },
             {
                 "id": "3",
-                "sender": "测试群 (23456789@chatroom)",
-                "content": "这是来自群聊的消息",
+                "sender": "测试�?(23456789@chatroom)",
+                "content": "这是来自群聊的消�?,
                 "type": "text",
-                "timestamp": int(time.time() - 3600 * 1) * 1000  # 1小时前
+                "timestamp": int(time.time() - 3600 * 1) * 1000  # 1小时�?
             },
             {
                 "id": "4",
                 "sender": "系统通知",
                 "content": "机器人已成功登录",
                 "type": "system",
-                "timestamp": int(time.time() - 600) * 1000  # 10分钟前
+                "timestamp": int(time.time() - 600) * 1000  # 10分钟�?
             },
             {
                 "id": "5",
                 "sender": "王五 (wxid_345678)",
                 "content": "https://example.com/voice.mp3",
                 "type": "voice",
-                "timestamp": int(time.time() - 300) * 1000  # 5分钟前
+                "timestamp": int(time.time() - 300) * 1000  # 5分钟�?
             }
         ]
         
@@ -2987,37 +3011,6 @@ async def get_messages_api(
         logger.error(traceback.format_exc())
     return await logout(request)
 
-# 获取日志
-def get_recent_logs(limit=20):
-    """获取最近的日志记录"""
-    try:
-        logs = []
-        log_file = Path(BASE_DIR) / "logs" / "web.log"
-        
-        if log_file.exists():
-            with open(log_file, "r", encoding="utf-8") as f:
-                # 读取最后N行
-                lines = f.readlines()
-                last_lines = lines[-limit:] if len(lines) > limit else lines
-                
-                for line in last_lines:
-                    # 解析日志格式：时间 - 模块 - 级别 - 消息
-                    parts = line.strip().split(" - ", 3)
-                    if len(parts) >= 4:
-                        timestamp, module, level, message = parts
-                        logs.append({
-                            "timestamp": timestamp,
-                            "module": module,
-                            "level": level,
-                            "message": message
-                        })
-        
-        return logs
-    except Exception as e:
-        logger.error(f"获取日志记录出错: {e}")
-        return [{"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-               "level": "ERROR", 
-               "message": f"获取日志失败: {str(e)}"}]
-
 if __name__ == "__main__":
     start_web_server() 
+
