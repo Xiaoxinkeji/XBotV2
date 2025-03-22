@@ -709,49 +709,157 @@ async def api_logs(
 ):
     """获取日志API"""
     try:
+        # 日志目录优先级：/app/logs, /var/log/xbotv2, ./logs
+        potential_log_dirs = [
+            Path("/app/logs"),
+            Path("/var/log/xbotv2"),
+            Path("logs")
+        ]
+        
         # 获取日志文件列表
-        logs_dir = Path("logs")
         log_files = []
-        if logs_dir.exists():
-            log_files = sorted([f.name for f in logs_dir.glob("*.log")], reverse=True)
+        logs_dir = None
+        
+        # 尝试每个可能的目录
+        for dir_path in potential_log_dirs:
+            logger.debug(f"尝试查找日志目录: {dir_path}")
+            if dir_path.exists() and dir_path.is_dir():
+                logs_dir = dir_path
+                log_files = sorted([f.name for f in dir_path.glob("*.log")], reverse=True)
+                if log_files:
+                    logger.debug(f"找到日志文件: {len(log_files)}个, 在目录: {logs_dir}")
+                    break
+        
+        if not logs_dir or not log_files:
+            logger.warning("未找到任何日志文件")
+            return JSONResponse({
+                "success": True,
+                "logs": [],
+                "message": "未找到日志文件"
+            })
         
         # 读取最新的日志文件内容
         logs = []
         if log_files:
             latest_log = logs_dir / log_files[0]
+            logger.debug(f"读取最新日志文件: {latest_log}")
             try:
-                with open(latest_log, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    # 从末尾开始读取
-                    for line in reversed(lines):
-                        # 如果已经达到限制，停止读取
-                        if len(logs) >= limit:
-                            break
-                            
-                        # 解析日志行
-                        parts = line.strip().split(" | ", 2)
-                        if len(parts) >= 3:
-                            timestamp, log_level, message = parts
-                            
-                            # 级别过滤
-                            if level and level.upper() != log_level.strip().upper():
-                                continue
+                # 检查文件大小，过大时采用不同策略
+                file_size = latest_log.stat().st_size
+                logger.debug(f"日志文件大小: {file_size} 字节")
+                
+                # 大文件使用tail方式读取最后部分
+                if file_size > 1024 * 1024 * 10:  # 大于10MB
+                    logger.debug("日志文件较大，使用逆序读取方式")
+                    with open(latest_log, "rb") as f:
+                        # 从末尾开始读取最后约200KB数据
+                        chunk_size = min(file_size, 1024 * 200)
+                        f.seek(max(0, file_size - chunk_size))
+                        last_lines = f.read().decode('utf-8', errors='replace').splitlines()
+                        
+                        # 保留完整行
+                        if file_size > chunk_size:
+                            last_lines = last_lines[1:]  # 去掉可能不完整的第一行
+                        
+                        # 逆序处理
+                        for line in reversed(last_lines):
+                            # 如果已经达到限制，停止读取
+                            if len(logs) >= limit:
+                                break
                                 
-                            # 关键词过滤
-                            if search and search.lower() not in message.lower():
-                                continue
+                            # 尝试解析日志行
+                            try:
+                                # 处理多种可能的日志格式
+                                if " | " in line:
+                                    parts = line.strip().split(" | ", 2)
+                                    if len(parts) >= 3:
+                                        timestamp, log_level, message = parts
+                                elif "] [" in line:
+                                    # 匹配类似[2023-04-01 12:34:56] [INFO] 消息内容的格式
+                                    match = re.search(r'\[(.*?)\]\s*\[(.*?)\](.*)', line)
+                                    if match:
+                                        timestamp, log_level, message = match.groups()
+                                    else:
+                                        continue
+                                else:
+                                    # 其他无法识别的格式，简单分割
+                                    timestamp = ""
+                                    log_level = "INFO"
+                                    message = line.strip()
                                 
-                            logs.append({
-                                "timestamp": timestamp,
-                                "level": log_level.strip(),
-                                "message": message.strip()
-                            })
+                                # 级别过滤
+                                if level and level.upper() != log_level.strip().upper():
+                                    continue
+                                    
+                                # 关键词过滤
+                                if search and search.lower() not in message.lower():
+                                    continue
+                                    
+                                logs.append({
+                                    "timestamp": timestamp,
+                                    "level": log_level.strip(),
+                                    "message": message.strip()
+                                })
+                            except Exception as parse_err:
+                                logger.debug(f"解析日志行失败: {parse_err}, 行内容: {line[:100]}...")
+                                continue
+                else:
+                    # 对于小文件，直接读取全部内容
+                    logger.debug("日志文件较小，直接读取全部内容")
+                    with open(latest_log, "r", encoding="utf-8", errors='replace') as f:
+                        lines = f.readlines()
+                        # 从末尾开始读取
+                        for line in reversed(lines):
+                            # 如果已经达到限制，停止读取
+                            if len(logs) >= limit:
+                                break
+                                
+                            # 尝试解析日志行
+                            try:
+                                # 处理多种可能的日志格式
+                                if " | " in line:
+                                    parts = line.strip().split(" | ", 2)
+                                    if len(parts) >= 3:
+                                        timestamp, log_level, message = parts
+                                    else:
+                                        continue
+                                elif "] [" in line:
+                                    # 匹配类似[2023-04-01 12:34:56] [INFO] 消息内容的格式
+                                    match = re.search(r'\[(.*?)\]\s*\[(.*?)\](.*)', line)
+                                    if match:
+                                        timestamp, log_level, message = match.groups()
+                                    else:
+                                        continue
+                                else:
+                                    # 其他无法识别的格式，简单分割
+                                    timestamp = ""
+                                    log_level = "INFO"
+                                    message = line.strip()
+                                
+                                # 级别过滤
+                                if level and level.upper() != log_level.strip().upper():
+                                    continue
+                                    
+                                # 关键词过滤
+                                if search and search.lower() not in message.lower():
+                                    continue
+                                    
+                                logs.append({
+                                    "timestamp": timestamp,
+                                    "level": log_level.strip(),
+                                    "message": message.strip()
+                                })
+                            except Exception as parse_err:
+                                logger.debug(f"解析日志行失败: {parse_err}, 行内容: {line[:100]}...")
+                                continue
             except Exception as log_err:
                 logger.error(f"读取日志文件失败: {str(log_err)}")
+                logger.error(traceback.format_exc())
         
         return JSONResponse({
             "success": True,
-            "logs": logs
+            "logs": logs,
+            "file": log_files[0] if log_files else None
         })
     except Exception as e:
         logger.error(f"获取日志失败: {str(e)}")
@@ -765,32 +873,55 @@ async def api_logs(
 async def download_logs(request: Request, username: str = Depends(get_current_username)):
     """下载日志文件"""
     try:
-        # 获取最新的日志文件
-        logs_dir = Path("logs")
+        # 使用相同的日志目录优先级
+        potential_log_dirs = [
+            Path("/app/logs"),
+            Path("/var/log/xbotv2"),
+            Path("logs")
+        ]
+        
+        # 获取日志文件列表
         log_files = []
-        if logs_dir.exists():
-            log_files = sorted([f for f in logs_dir.glob("*.log")], reverse=True, key=lambda x: x.stat().st_mtime)
+        logs_dir = None
         
-        if not log_files:
-            return JSONResponse({
-                "success": False,
-                "message": "未找到日志文件"
-            })
+        # 尝试每个可能的目录
+        for dir_path in potential_log_dirs:
+            logger.debug(f"尝试查找日志目录(下载): {dir_path}")
+            if dir_path.exists() and dir_path.is_dir():
+                logs_dir = dir_path
+                log_files = sorted([f.name for f in dir_path.glob("*.log")], reverse=True)
+                if log_files:
+                    logger.debug(f"找到日志文件(下载): {len(log_files)}个, 在目录: {logs_dir}")
+                    break
         
-        latest_log = log_files[0]
+        if not logs_dir or not log_files:
+            logger.warning("未找到任何日志文件")
+            raise HTTPException(status_code=404, detail="未找到日志文件")
         
-        return FileResponse(
-            path=latest_log,
-            filename=latest_log.name,
-            media_type="text/plain"
-        )
+        # 返回最新的日志文件
+        latest_log = logs_dir / log_files[0]
+        
+        # 检查文件是否存在和可读
+        if not latest_log.exists():
+            logger.error(f"日志文件不存在: {latest_log}")
+            raise HTTPException(status_code=404, detail="日志文件不存在")
+            
+        try:
+            return FileResponse(
+                path=latest_log,
+                filename=log_files[0],
+                media_type="text/plain"
+            )
+        except Exception as file_err:
+            logger.error(f"返回日志文件失败: {str(file_err)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"读取日志文件失败: {str(file_err)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"下载日志失败: {str(e)}")
         logger.error(traceback.format_exc())
-        return JSONResponse({
-            "success": False,
-            "message": str(e)
-        })
+        raise HTTPException(status_code=500, detail=str(e))
 
 # 导入WechatAPIClient
 from WechatAPI.api_client import WechatAPIClient
