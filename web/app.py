@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.middleware.sessions import SessionMiddleware
+import uvicorn  # 添加缺失的uvicorn导入
 
 # 确保Body导入可用
 from fastapi import Body as FastAPIBody
@@ -1091,6 +1092,23 @@ async def plugins_page(request: Request, username: str = Depends(get_current_use
         
         if plugins_dir.exists() and plugins_dir.is_dir():
             for plugin_dir in plugins_dir.iterdir():
+                if plugin_dir.is_dir() and (plugin_dir / "__init__.py").exists():
+                    plugin_name = plugin_dir.name
+                    plugin_info = {
+                        "name": plugin_name,
+                        "status": "已安装",  # 默认状态
+                        "version": "未知",
+                        "description": "无描述信息"
+                    }
+                    
+                    # 尝试读取插件的 info.json 文件获取更多信息
+                    info_file = plugin_dir / "info.json"
+                    if info_file.exists():
+                        try:
+                            with open(info_file, "r", encoding="utf-8") as f:
+                                info_data = json.load(f)
+                                plugin_info.update(info_data)
+                        except Exception as e:
                             logger.error(f"读取插件 {plugin_name} 的信息出错: {e}")
                     
                     plugins_info.append(plugin_info)
@@ -1157,9 +1175,28 @@ async def settings_page(request: Request, username: str = Depends(get_current_us
 @app.get("/logout")
 async def logout(request: Request):
     """注销登录"""
-    response = RedirectResponse(url="/")
-    response.delete_cookie(key="session")
-    return response
+    try:
+        # 清除会话
+        request.session.clear()
+        logger.info("用户登出成功")
+        response = RedirectResponse(url="/login", status_code=303)
+        response.delete_cookie(key="session")
+        return response
+    except Exception as e:
+        logger.error(f"登出处理出错: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/logout2")
+async def logout_alt(request: Request):
+    """处理用户登出请求"""
+    try:
+        # 清除会话
+        request.session.clear()
+        logger.info("用户登出成功")
+        return RedirectResponse(url="/login", status_code=303)
+    except Exception as e:
+        logger.error(f"登出处理出错: {e}")
+        return RedirectResponse(url="/login", status_code=303)
 
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
@@ -2023,10 +2060,16 @@ async def startup_plugin_repository():
 
 # 主函数
 def start_web_server():
+    """启动Web服务器"""
+    # 获取配置
+    config = get_config()
+    web_config = config.get("WebInterface", {})
+    
     host = web_config.get("host", "0.0.0.0")
     port = web_config.get("port", 8080)
     debug = web_config.get("debug", False)
     
+    logger.info(f"启动Web服务器: {host}:{port}，调试模式: {'开启' if debug else '关闭'}")
     uvicorn.run("web.app:app", host=host, port=port, reload=debug)
 
 # 在其他页面路由附近添加以下代码
@@ -2183,6 +2226,18 @@ async def authenticate(request: Request, username: str = Form(...), password: st
 
 @app.get("/logout")
 async def logout(request: Request):
+    """处理用户登出请求"""
+    try:
+        # 清除会话
+        request.session.clear()
+        logger.info("用户登出成功")
+        return RedirectResponse(url="/login", status_code=303)
+    except Exception as e:
+        logger.error(f"登出处理出错: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/logout2")
+async def logout_alt(request: Request):
     """处理用户登出请求"""
     try:
         # 清除会话
