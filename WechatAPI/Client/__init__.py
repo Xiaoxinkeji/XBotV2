@@ -12,7 +12,7 @@ from .user import UserMixin
 
 
 class WechatAPIClient(LoginMixin, MessageMixin, FriendMixin, ChatroomMixin, UserMixin,
-                      ToolMixin, HongBaoMixin):
+                      ToolMixin, HongBaoMixin, WechatAPIClientBase):
 
     # 这里都是需要结合多个功能的方法
 
