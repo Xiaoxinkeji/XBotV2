@@ -13,7 +13,7 @@
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
 .idea/**/gradle.xml
-.idea/**/libraries
+.idea/**/librarie
 cmake-build-*/
 .idea/**/mongoSettings.xml
 *.iws

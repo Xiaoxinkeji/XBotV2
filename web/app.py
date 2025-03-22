@@ -52,7 +52,7 @@ if not (os.path.exists(os.path.join(BASE_DIR, "main.py")) or
 sys.path.insert(0, BASE_DIR)
 
 # 导入配置工具
-from utils.config_utils import load_toml_config
+from utils.config_utils import load_toml_config, save_toml_config
 
 # 创建FastAPI应用
 app = FastAPI()
@@ -586,7 +586,6 @@ async def settings_page(request: Request, username: str = Depends(get_current_us
     """设置页面"""
     try:
         # 读取配置文件
-        from utils.config_utils import load_toml_config
         config_path = Path("main_config.toml")
         config = load_toml_config(config_path)
         
@@ -621,7 +620,6 @@ async def save_settings(request: Request, username: str = Depends(get_current_us
         form_data = await request.form()
         
         # 读取原配置
-        from utils.config_utils import load_toml_config, save_toml_config
         config_path = Path("main_config.toml")
         config = load_toml_config(config_path)
         
@@ -658,6 +656,30 @@ async def save_settings(request: Request, username: str = Depends(get_current_us
             }
         )
 
+# 为bot_core.py模块提供的启动函数
+def start_web(host='0.0.0.0', port=8080, debug=False, admin_username="admin", admin_password="admin123", minimal_mode=False):
+    """
+    启动Web服务器
+    
+    Args:
+        host (str): 监听的主机地址
+        port (int): 监听的端口
+        debug (bool): 是否启用调试模式
+        admin_username (str): 管理员用户名
+        admin_password (str): 管理员密码
+        minimal_mode (bool): 是否为最小模式运行
+    """
+    # 初始化
+    setup_templates_and_static()
+    
+    # 启动Web服务器
+    uvicorn.run(
+        app, 
+        host=host, 
+        port=port, 
+        log_level="debug" if debug else "info"
+    )
+
 # 启动Web服务器
 def start_web_server():
     """启动Web服务器"""
@@ -692,6 +714,7 @@ if __name__ == "__main__":
 async def api_wechat_status(request: Request, username: str = Depends(get_current_username)):
     """获取微信登录状态"""
     try:
+        # 正常模式，尝试获取真实数据
         client = WechatAPIClient(host="localhost", port=9000)
         login_status = await client.get_login_status()
         
@@ -700,15 +723,24 @@ async def api_wechat_status(request: Request, username: str = Depends(get_curren
             "is_logged_in": login_status.get("is_logged_in", False),
             "nickname": login_status.get("nickname", ""),
             "wxid": login_status.get("wxid", ""),
-            "login_time": login_status.get("login_time", ""),
-            "device_type": login_status.get("device_type", "")
+            "login_time": login_status.get("login_time", 0),
+            "device_type": login_status.get("device_type", ""),
+            "is_simulated": False
         })
     except Exception as e:
         logger.error(f"获取微信状态失败: {str(e)}")
         logger.error(traceback.format_exc())
+        
+        # 出错时也提供基本响应，防止UI崩溃
         return JSONResponse({
             "success": False,
-            "message": str(e)
+            "is_logged_in": False,
+            "nickname": "连接错误",
+            "wxid": "",
+            "login_time": 0,
+            "device_type": "Unknown",
+            "error": str(e),
+            "message": "获取微信状态失败，请检查服务是否正常运行"
         })
 
 @app.post("/api/wechat/logout", response_class=JSONResponse)

@@ -5,6 +5,7 @@ from typing import Union
 
 import aiohttp
 import qrcode
+from loguru import logger
 
 from .base import *
 from .protect import protector
@@ -12,124 +13,188 @@ from ..errors import *
 
 
 class LoginMixin(WechatAPIClientBase):
+    # 模拟数据，用于Redis不可用情况
+    mock_data = {
+        "is_logged_in": False,
+        "wxid": "",
+        "nickname": "模拟账号",
+        "login_time": 0,
+        "device_type": "Simulated",
+        "status": "无法连接到微信服务",
+        "is_simulated": True
+    }
+    
     async def is_running(self) -> bool:
-        """检查服务是否正在运行
-
+        """检查服务器是否运行中
+        
         Returns:
-            bool: 如果服务正在运行，则为True
+            bool: 运行中返回True，否则返回False
         """
         try:
             # 尝试多个可能的端点
-            endpoints = ["", "/is_running", "/IsRunning", "/health", "/ping", "/status"]
-            timeout = aiohttp.ClientTimeout(total=2)  # 设置2秒超时
+            endpoints = [
+                "/IsRunning", 
+                "/is_running", 
+                "/ping", 
+                "/health", 
+                "/status"
+            ]
+            
+            from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError, ServerTimeoutError
             
             for endpoint in endpoints:
                 try:
-                    url = f"http://{self.ip}:{self.port}{endpoint}"
+                    timeout = aiohttp.ClientTimeout(total=2)  # 设置2秒超时
                     async with aiohttp.ClientSession(timeout=timeout) as session:
+                        url = f"http://{self.ip}:{self.port}{endpoint}"
                         async with session.get(url) as response:
-                            if response.status < 500:  # 任何非服务器错误都表示服务器在运行
+                            if response.status == 200:
                                 return True
-                except Exception as e:
-                    # 如果一个端点失败，尝试下一个
+                except (ClientConnectorError, ClientResponseError, ServerTimeoutError) as e:
                     continue
-                    
-            # 如果所有端点都失败，尝试一种替代方法
-            try:
-                # 测试TCP连接
-                import socket
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1)
-                result = sock.connect_ex((self.ip, self.port))
-                sock.close()
-                return result == 0  # 如果端口开放，则认为服务在运行
-            except Exception:
-                pass
-                
+                except Exception as e:
+                    # 捕获其他异常但继续尝试下一个端点
+                    continue
+            
+            # 如果所有端点都失败，尝试直接检查TCP连接
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((self.ip, self.port))
+            sock.close()
+            
+            # 如果端口可连接但API未响应，可能是服务正在启动
+            if result == 0:
+                logger.info(f"端口 {self.port} 可以连接，但API服务未正确响应")
+                return False
+            
             return False
-        except Exception:
+        except Exception as e:
+            logger.error(f"检查服务状态时发生错误: {e}")
             return False
 
     async def get_login_status(self) -> dict:
-        """获取当前微信登录状态
+        """
+        获取当前微信登录状态
         
         Returns:
-            dict: 包含登录状态信息的字典，如下所示：
-                {
-                    "is_logged_in": bool,  # 是否已登录
-                    "wxid": str,           # 微信ID (如已登录)
-                    "nickname": str,       # 微信昵称 (如已登录)
-                    "login_time": int,     # 登录时间戳 (如已登录)
-                    "device_type": str     # 设备类型 (如已登录)
-                }
+            dict: 登录状态信息，包含以下字段:
+                is_logged_in (bool): 是否已登录
+                wxid (str): 微信ID
+                nickname (str): 昵称
+                login_time (int): 登录时间戳
+                device_type (str): 设备类型
+        
+        Raises:
+            APIConnectionError: 连接API服务器失败
+            APIResponseError: API返回错误
         """
-        # 获取基本登录信息
-        logged_in = bool(self.wxid)
-        
-        result = {
-            "is_logged_in": logged_in,
-            "wxid": self.wxid,
-            "nickname": self.nickname,
-            "login_time": 0,  # 默认值
-            "device_type": "Unknown"  # 默认值
-        }
-        
-        # 如果已登录，尝试获取更多详细信息
-        if logged_in:
-            try:
-                # 尝试获取更多详细信息
-                cached_info = await self.get_cached_info(self.wxid)
-                if cached_info:
-                    result["nickname"] = cached_info.get("nickname", self.nickname)
-                    # 添加其他可能有用的信息
-            except Exception:
-                # 如果获取额外信息失败，使用已有的基本信息
-                pass
-        
-        return result
+        try:
+            is_logged_in = bool(self.wxid)
+            if is_logged_in:
+                info = await self.get_cached_info()
+                return {
+                    "is_logged_in": is_logged_in,
+                    "wxid": self.wxid,
+                    "nickname": info.get("nickname", ""),
+                    "login_time": info.get("login_time", 0),
+                    "device_type": info.get("device_type", ""),
+                }
+            else:
+                return {
+                    "is_logged_in": False,
+                    "wxid": "",
+                    "nickname": "",
+                    "login_time": 0,
+                    "device_type": "",
+                }
+                
+        except Exception as e:
+            logger.error(f"获取登录状态失败: {str(e)}")
+            # 返回错误状态，但不模拟数据
+            return {
+                "is_logged_in": False,
+                "wxid": "",
+                "nickname": "",
+                "login_time": 0,
+                "device_type": "",
+                "error": str(e)
+            }
 
     async def get_qr_code(self, device_name: str, device_id: str = "", proxy: Proxy = None, print_qr: bool = False) -> (
             str, str):
-        """获取登录二维码。
-
+        """获取登录二维码
+        
         Args:
             device_name (str): 设备名称
-            device_id (str, optional): 设备ID. Defaults to "".
-            proxy (Proxy, optional): 代理信息. Defaults to None.
-            print_qr (bool, optional): 是否在控制台打印二维码. Defaults to False.
-
+            device_id (str, optional): 设备ID. 默认为空字符串，会自动生成
+            proxy (Proxy, optional): 代理设置. 默认为None
+            print_qr (bool, optional): 是否在控制台打印二维码. 默认为False
+            
         Returns:
-            tuple[str, str]: 返回登录二维码的UUID和URL
-
+            tuple[str, str]: (uuid, qr_url)二维码ID和二维码图片URL
+            
         Raises:
-            根据error_handler处理错误
+            APIConnectionError: 连接API服务器失败
+            APIResponseError: API返回错误
         """
-        async with aiohttp.ClientSession() as session:
-            json_param = {'DeviceName': device_name, 'DeviceID': device_id}
+        try:
+            if not device_id:
+                device_id = self.create_device_id()
+                
+            # 使用正确的URL构建方式
+            url = f"http://{self.ip}:{self.port}/GetQRCode"
+            
+            # 准备请求参数
+            json_param = {
+                "DeviceName": device_name,
+                "DeviceID": device_id
+            }
+            
+            # 添加代理参数（如果提供）
             if proxy:
-                json_param['ProxyInfo'] = {'ProxyIp': f'{proxy.ip}:{proxy.port}',
-                                           'ProxyPassword': proxy.password,
-                                           'ProxyUser': proxy.username}
-
-            response = await session.post(f'http://{self.ip}:{self.port}/GetQRCode', json=json_param)
-            json_resp = await response.json()
-
-            if json_resp.get("Success"):
-
-                if print_qr:
-                    qr = qrcode.QRCode(
-                        version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_L,
-                        box_size=10,
-                        border=4,
-                    )
-                    qr.add_data(f'http://weixin.qq.com/x/{json_resp.get("Data").get("Uuid")}')
-                    qr.make(fit=True)
-                    qr.print_ascii()
-
-                return json_resp.get("Data").get("Uuid"), json_resp.get("Data").get("QRCodeURL")
-            else:
-                self.error_handler(json_resp)
+                json_param["ProxyInfo"] = {
+                    "ProxyIp": f"{proxy.ip}:{proxy.port}",
+                    "ProxyPassword": proxy.password,
+                    "ProxyUser": proxy.username
+                }
+                    
+            # 发送请求
+            async with aiohttp.ClientSession() as session:
+                response = await session.post(url, json=json_param)
+                json_resp = await response.json()
+            
+                if json_resp.get("Success"):
+                    uuid = json_resp.get("uuid", "")
+                    qrcode_url = json_resp.get("QR_url", "")
+                    
+                    if print_qr and qrcode_url:
+                        self._print_qrcode(qrcode_url)
+                    
+                    return uuid, qrcode_url
+                else:
+                    logger.error(f"获取二维码失败: {json_resp.get('Message', '未知错误')}")
+                    raise APIResponseError(f"获取二维码失败: {json_resp.get('Message', '未知错误')}")
+                
+        except Exception as e:
+            logger.error(f"获取登录二维码时发生错误: {str(e)}")
+            raise APIConnectionError(f"获取登录二维码失败: {str(e)}")
+    
+    def _print_qrcode(self, qrcode_url):
+        """在控制台打印二维码"""
+        try:
+            import qrcode
+            
+            qr = qrcode.QRCode()
+            qr.add_data(qrcode_url)
+            qr.print_ascii(invert=True)
+            logger.info(f"请使用微信扫描上方二维码登录\n二维码链接: {qrcode_url}")
+        except ImportError:
+            logger.warning("未安装qrcode库，无法在控制台打印二维码")
+            logger.info(f"请使用微信扫描二维码登录: {qrcode_url}")
+        except Exception as e:
+            logger.error(f"打印二维码时发生错误: {str(e)}")
+            logger.info(f"请使用微信扫描二维码登录: {qrcode_url}")
 
     async def check_login_uuid(self, uuid: str, device_id: str = "") -> tuple[bool, Union[dict, int]]:
         """检查登录的UUID状态。
@@ -144,6 +209,11 @@ class LoginMixin(WechatAPIClientBase):
         Raises:
             根据error_handler处理错误
         """
+        # 检查是否处于模拟模式
+        if hasattr(self, 'minimal_mode') and self.minimal_mode:
+            logger.info("模拟模式下不支持实际登录，返回虚拟等待状态")
+            return False, 300  # 返回模拟的过期时间
+            
         async with aiohttp.ClientSession() as session:
             json_param = {"Uuid": uuid}
             response = await session.post(f'http://{self.ip}:{self.port}/CheckUuid', json=json_param)
@@ -161,29 +231,42 @@ class LoginMixin(WechatAPIClientBase):
                 self.error_handler(json_resp)
 
     async def log_out(self) -> bool:
-        """登出当前账号。
-
+        """
+        登出微信
+        
         Returns:
-            bool: 登出成功返回True，否则返回False
-
+            bool: 是否成功登出
+            
         Raises:
-            UserLoggedOut: 如果未登录时调用
-            根据error_handler处理错误
+            APIConnectionError: 连接API服务器失败
+            APIResponseError: API返回错误
         """
         if not self.wxid:
-            raise UserLoggedOut("请先登录")
-
-        async with aiohttp.ClientSession() as session:
-            json_param = {"Wxid": self.wxid}
-            response = await session.post(f'http://{self.ip}:{self.port}/Logout', json=json_param)
-            json_resp = await response.json()
-
-            if json_resp.get("Success"):
+            logger.warning("用户尚未登录，无需登出")
+            return True
+            
+        try:
+            url = f"{self.api_url}/LogOut"
+            result = await self._post_json(url)
+            
+            if result.get("Success"):
+                # 无论API调用成功与否，都清除本地登录信息
+                self.wxid = ""
+                self.nickname = ""
                 return True
-            elif json_resp.get("Success"):
-                return False
             else:
-                self.error_handler(json_resp)
+                logger.error(f"API登出失败: {result.get('Message', '未知错误')}")
+                # 即使API调用失败，也清除本地登录信息
+                self.wxid = ""
+                self.nickname = ""
+                return False
+                
+        except Exception as e:
+            logger.error(f"登出时发生错误: {str(e)}")
+            # 即使发生错误，也清除本地登录信息
+            self.wxid = ""
+            self.nickname = ""
+            return False
 
     async def awaken_login(self, wxid: str = "") -> str:
         """唤醒登录。

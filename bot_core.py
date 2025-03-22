@@ -4,6 +4,7 @@ import os
 import time
 import tomllib
 import traceback
+import threading
 from pathlib import Path
 
 from loguru import logger
@@ -31,121 +32,222 @@ async def bot_core():
 
     logger.success("读取主设置成功")
 
-    # 启动WechatAPI服务
-    server = WechatAPI.WechatAPIServer()
-    api_config = main_config.get("WechatAPIServer", {})
-    redis_host = api_config.get("redis-host", "127.0.0.1")
-    redis_port = api_config.get("redis-port", 6379)
-    logger.debug("Redis 主机地址: {}:{}", redis_host, redis_port)
-    server.start(port=api_config.get("port", 9000),
-                 mode=api_config.get("mode", "release"),
-                 redis_host=redis_host,
-                 redis_port=redis_port,
-                 redis_password=api_config.get("redis-password", ""),
-                 redis_db=api_config.get("redis-db", 0))
+    # 声明用于跟踪服务状态的变量
+    wechat_api_available = False
+    redis_available = False
+    minimal_mode = False
 
-    # 实例化WechatAPI客户端
+    # 启动WechatAPI服务
+    try:
+        server = WechatAPI.WechatAPIServer()
+        api_config = main_config.get("WechatAPIServer", {})
+        redis_host = api_config.get("redis-host", "127.0.0.1")
+        redis_port = api_config.get("redis-port", 6379)
+        logger.debug("Redis 主机地址: {}:{}", redis_host, redis_port)
+        
+        # 尝试启动WechatAPI服务，添加更多的错误处理
+        try:
+            server.start(port=api_config.get("port", 9000),
+                        mode=api_config.get("mode", "release"),
+                        redis_host=redis_host,
+                        redis_port=redis_port,
+                        redis_password=api_config.get("redis-password", ""),
+                        redis_db=api_config.get("redis-db", 0))
+            logger.success("WechatAPI服务启动命令已执行")
+        except Exception as e:
+            logger.error(f"启动WechatAPI服务时遇到错误: {e}")
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            logger.error("请确保Redis服务已启动或修改Redis配置")
+            # 设置为最小模式
+            minimal_mode = True
+            logger.warning("系统将以最小模式运行，部分功能将不可用")
+    except Exception as init_error:
+        logger.error(f"初始化WechatAPI服务失败: {init_error}")
+        logger.error(f"错误详情: {traceback.format_exc()}")
+        # 设置为最小模式
+        minimal_mode = True
+        logger.warning("系统将以最小模式运行，部分功能将不可用")
+
+    # 实例化WechatAPI客户端，即使在最小模式下也创建实例，以支持UI的部分功能
     bot = WechatAPI.WechatAPIClient("127.0.0.1", api_config.get("port", 9000))
     bot.ignore_protect = main_config.get("XYBot", {}).get("ignore-protection", False)
 
-    # 等待WechatAPI服务启动
-    time_out = 30  # 增加超时时间到30秒
-    retry_interval = 3  # 每次重试间隔3秒
-    retry_count = time_out // retry_interval
-    
-    logger.info("开始检测WechatAPI服务状态...")
-    
-    connection_failed = True
-    last_error = None
-    
-    for i in range(retry_count):
-        try:
-            if await bot.is_running():
-                connection_failed = False
-                logger.success("成功连接到WechatAPI服务")
-                break
-            else:
-                remaining = time_out - (i * retry_interval)
-                logger.info(f"等待WechatAPI启动中 (剩余时间: {remaining}秒)")
+    # 如果不是最小模式，尝试连接WechatAPI服务
+    if not minimal_mode:
+        # 等待WechatAPI服务启动
+        time_out = 30  # 增加超时时间到30秒
+        retry_interval = 3  # 每次重试间隔3秒
+        retry_count = time_out // retry_interval
+        
+        logger.info("开始检测WechatAPI服务状态...")
+        
+        connection_failed = True
+        last_error = None
+        
+        for i in range(retry_count):
+            try:
+                if await bot.is_running():
+                    connection_failed = False
+                    wechat_api_available = True
+                    logger.success("成功连接到WechatAPI服务")
+                    break
+                else:
+                    remaining = time_out - (i * retry_interval)
+                    logger.info(f"等待WechatAPI启动中 (剩余时间: {remaining}秒)")
+                    await asyncio.sleep(retry_interval)
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"连接WechatAPI时发生错误: {last_error}, 将在{retry_interval}秒后重试")
                 await asyncio.sleep(retry_interval)
-        except Exception as e:
-            last_error = str(e)
-            logger.warning(f"连接WechatAPI时发生错误: {last_error}, 将在{retry_interval}秒后重试")
-            await asyncio.sleep(retry_interval)
 
-    if connection_failed:
-        logger.error("WechatAPI服务启动超时")
-        
-        # 添加详细的诊断信息
-        logger.error("诊断信息:")
-        logger.error(f"  - 目标API地址: 127.0.0.1:{api_config.get('port', 9000)}")
-        logger.error(f"  - 最后一次错误: {last_error if last_error else '无具体错误信息'}")
-        
-        # 检查端口是否被占用
-        try:
-            import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            result = sock.connect_ex(("127.0.0.1", api_config.get("port", 9000)))
-            sock.close()
+        if connection_failed:
+            logger.error("WechatAPI服务启动超时")
             
-            if result == 0:
-                logger.error("端口诊断: 端口可以连接，但API服务没有正确响应")
-                logger.error("可能原因: API服务正在启动或端口被其他应用占用")
-            else:
-                logger.error(f"端口诊断: 无法连接到端口 (错误码: {result})")
-                logger.error("可能原因: API服务未启动或被防火墙阻止")
-        except Exception as e:
-            logger.error(f"端口诊断失败: {e}")
-        
-        # Docker环境下的额外提示
-        if os.path.exists("/.dockerenv") or os.environ.get("DOCKER_CONTAINER"):
-            logger.error("Docker环境诊断:")
-            logger.error("  1. 确保服务之间的网络连接正常")
-            logger.error("  2. 使用容器名称替代localhost，例如 'xbotv2-api:9000'")
-            logger.error("  3. 检查docker-compose.yml中的网络配置和服务名称")
-        
-        return
-
-    logger.success("WechatAPI服务已启动")
-
-    # 检查Redis连接
-    try:
-        redis_status = await bot.check_database()
-        if not redis_status:
-            logger.error("Redis连接失败，请检查以下配置:")
-            logger.error(f"  - Redis主机: {redis_host}")
-            logger.error(f"  - Redis端口: {redis_port}")
-            logger.error(f"  - Redis密码: {'已设置' if api_config.get('redis-password') else '未设置'}")
-            logger.error(f"  - Redis数据库: {api_config.get('redis-db', 0)}")
-            logger.error("请确保Redis服务已经启动并可以正常连接。")
+            # 添加详细的诊断信息
+            logger.error("诊断信息:")
+            logger.error(f"  - 目标API地址: 127.0.0.1:{api_config.get('port', 9000)}")
+            logger.error(f"  - 最后一次错误: {last_error if last_error else '无具体错误信息'}")
             
-            # 添加更详细的错误处理和恢复建议
-            if redis_host == "127.0.0.1" or redis_host == "localhost":
-                logger.error("本地Redis连接失败，请尝试以下操作:")
-                logger.error("  1. 确认Redis服务是否已安装并运行")
-                logger.error("  2. Windows下可在命令行执行: redis-server")
-                logger.error("  3. Linux下可执行: sudo service redis-server start 或 sudo systemctl start redis")
-            else:
-                logger.error("远程Redis连接失败，请尝试以下操作:")
-                logger.error("  1. 检查服务器防火墙是否允许 Redis 端口 (默认6379) 的连接")
-                logger.error("  2. 确认Redis配置是否允许远程连接 (bind配置项)")
-                logger.error("  3. 验证Redis密码是否正确")
+            # 检查端口是否被占用
+            try:
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex(("127.0.0.1", api_config.get("port", 9000)))
+                sock.close()
+                
+                if result == 0:
+                    logger.error("端口诊断: 端口可以连接，但API服务没有正确响应")
+                    logger.error("可能原因: API服务正在启动或端口被其他应用占用")
+                else:
+                    logger.error(f"端口诊断: 无法连接到端口 (错误码: {result})")
+                    logger.error("可能原因: API服务未启动或被防火墙阻止")
+            except Exception as e:
+                logger.error(f"端口诊断失败: {e}")
             
-            if os.path.exists("/etc/redis/redis.conf"):
-                logger.error("检测到Redis配置文件，请确认绑定地址和密码设置是否正确")
-            
-            # Docker环境处理
+            # Docker环境下的额外提示
             if os.path.exists("/.dockerenv") or os.environ.get("DOCKER_CONTAINER"):
-                logger.error("在Docker环境中，请检查容器网络和Redis容器状态:")
-                logger.error("  1. 执行 'docker ps' 查看Redis容器是否正常运行")
-                logger.error("  2. 确认Docker网络配置允许容器间通信")
-                logger.error("  3. 如果使用docker-compose，检查docker-compose.yml中的网络配置")
+                logger.error("Docker环境诊断:")
+                logger.error("  1. 确保服务之间的网络连接正常")
+                logger.error("  2. 使用容器名称替代localhost，例如 'xbotv2-api:9000'")
+                logger.error("  3. 检查docker-compose.yml中的网络配置和服务名称")
             
-            return
-    except Exception as db_error:
-        logger.error(f"检查Redis数据库时发生错误: {db_error}")
-        logger.error("请确保WechatAPI服务配置正确且Redis服务可用")
+            # 设置为最小模式
+            minimal_mode = True
+            logger.warning("系统将以最小模式运行，部分功能将不可用")
+        else:
+            logger.success("WechatAPI服务已启动")
+
+            # 检查Redis连接
+            try:
+                redis_status = await bot.check_database()
+                if not redis_status:
+                    logger.error("Redis连接失败，请检查以下配置:")
+                    logger.error(f"  - Redis主机: {redis_host}")
+                    logger.error(f"  - Redis端口: {redis_port}")
+                    logger.error(f"  - Redis密码: {'已设置' if api_config.get('redis-password') else '未设置'}")
+                    logger.error(f"  - Redis数据库: {api_config.get('redis-db', 0)}")
+                    logger.error("请确保Redis服务已经启动并可以正常连接。")
+                    
+                    # 添加更详细的错误处理和恢复建议
+                    if redis_host == "127.0.0.1" or redis_host == "localhost":
+                        logger.error("本地Redis连接失败，请尝试以下操作:")
+                        logger.error("  1. 确认Redis服务是否已安装并运行")
+                        logger.error("  2. Windows下可在命令行执行: redis-server")
+                        logger.error("  3. Linux下可执行: sudo service redis-server start 或 sudo systemctl start redis")
+                    else:
+                        logger.error("远程Redis连接失败，请尝试以下操作:")
+                        logger.error("  1. 检查服务器防火墙是否允许 Redis 端口 (默认6379) 的连接")
+                        logger.error("  2. 确认Redis配置是否允许远程连接 (bind配置项)")
+                        logger.error("  3. 验证Redis密码是否正确")
+                    
+                    if os.path.exists("/etc/redis/redis.conf"):
+                        logger.error("检测到Redis配置文件，请确认绑定地址和密码设置是否正确")
+                    
+                    # Docker环境处理
+                    if os.path.exists("/.dockerenv") or os.environ.get("DOCKER_CONTAINER"):
+                        logger.error("在Docker环境中，请检查容器网络和Redis容器状态:")
+                        logger.error("  1. 执行 'docker ps' 查看Redis容器是否正常运行")
+                        logger.error("  2. 确认Docker网络配置允许容器间通信")
+                        logger.error("  3. 如果使用docker-compose，检查docker-compose.yml中的网络配置")
+                    
+                    # 设置为最小模式
+                    minimal_mode = True
+                    logger.warning("系统将以最小模式运行，部分功能将不可用")
+                else:
+                    redis_available = True
+                    logger.success("Redis连接成功")
+            except Exception as db_error:
+                logger.error(f"检查Redis数据库时发生错误: {db_error}")
+                logger.error("请确保WechatAPI服务配置正确且Redis服务可用")
+                # 设置为最小模式
+                minimal_mode = True
+                logger.warning("系统将以最小模式运行，部分功能将不可用")
+
+    # 如果处于最小模式，尝试启动Web界面所需的服务
+    if minimal_mode:
+        logger.info("正在最小模式下初始化服务")
+        # 确保必要的目录存在
+        os.makedirs(script_dir / "resource", exist_ok=True)
+        
+        # 创建基本的模拟状态信息
+        bot.minimal_mode = True  # 添加标志以通知客户端处于最小模式
+        
+        # 修改默认行为，确保Web界面等基础服务能够启动
+        try:
+            # 如果需要初始化其他必要的服务，可以在这里添加
+            pass
+        except Exception as e:
+            logger.error(f"最小模式初始化错误: {e}")
+
+    # 无论是否为最小模式，都尝试初始化Web界面相关的组件
+    logger.info("正在启动Web管理界面...")
+    
+    try:
+        from web.app import start_web
+        web_config = main_config.get("WebInterface", {})
+        if web_config.get("enable", True):
+            # 启动Web服务
+            web_thread = threading.Thread(
+                target=start_web,
+                args=(web_config.get("host", "0.0.0.0"), 
+                      web_config.get("port", 8080),
+                      web_config.get("debug", False),
+                      web_config.get("username", "admin"),
+                      web_config.get("password", "admin123"),
+                      minimal_mode)  # 传递最小模式标志
+            )
+            web_thread.daemon = True
+            web_thread.start()
+            logger.success("Web管理界面已启动")
+        else:
+            logger.info("Web管理界面已禁用")
+    except Exception as e:
+        logger.error(f"启动Web管理界面失败: {e}")
+        logger.error(traceback.format_exc())
+
+    # 如果处于最小模式，提供提示并等待用户操作
+    if minimal_mode:
+        logger.warning("系统正在最小模式下运行，以下功能将不可用:")
+        logger.warning("  - 微信消息收发")
+        logger.warning("  - 插件功能")
+        logger.warning("  - 自动回复")
+        logger.warning("但Web管理界面可以访问，您可以通过它查看日志和修改配置")
+        logger.warning(f"请访问 http://localhost:{web_config.get('port', 8080)} 使用Web界面")
+        logger.warning("要完全启用所有功能，请安装并启动Redis服务")
+        
+        # 在最小模式下，进入无限循环，保持程序运行
+        try:
+            while True:
+                await asyncio.sleep(60)  # 每分钟打印一次状态
+                logger.info("系统仍在最小模式下运行，部分功能不可用")
+        except KeyboardInterrupt:
+            logger.info("接收到键盘中断，正在退出...")
+        except Exception as e:
+            logger.error(f"最小模式运行时发生异常: {e}")
+            logger.error(traceback.format_exc())
+        finally:
+            logger.info("系统退出")
         return
 
     # 检查并创建robot_stat.json文件
