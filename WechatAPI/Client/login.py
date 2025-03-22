@@ -19,12 +19,35 @@ class LoginMixin(WechatAPIClientBase):
             bool: 如果服务正在运行，则为True
         """
         try:
-            # 尝试发送一个简单的心跳请求
-            url = f"http://{self.ip}:{self.port}/is_running"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    return response.status == 200
-        except:
+            # 尝试多个可能的端点
+            endpoints = ["", "/is_running", "/IsRunning", "/health", "/ping", "/status"]
+            timeout = aiohttp.ClientTimeout(total=2)  # 设置2秒超时
+            
+            for endpoint in endpoints:
+                try:
+                    url = f"http://{self.ip}:{self.port}{endpoint}"
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.get(url) as response:
+                            if response.status < 500:  # 任何非服务器错误都表示服务器在运行
+                                return True
+                except Exception as e:
+                    # 如果一个端点失败，尝试下一个
+                    continue
+                    
+            # 如果所有端点都失败，尝试一种替代方法
+            try:
+                # 测试TCP连接
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex((self.ip, self.port))
+                sock.close()
+                return result == 0  # 如果端口开放，则认为服务在运行
+            except Exception:
+                pass
+                
+            return False
+        except Exception:
             return False
 
     async def get_login_status(self) -> dict:
