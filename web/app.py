@@ -49,6 +49,190 @@ logger.info(f"项目根目录: {BASE_DIR}")
 config_path = Path(BASE_DIR) / "main_config.toml"
 PROJECT_ROOT = Path(BASE_DIR)
 
+# 机器人上一次状态
+_last_robot_status = {"is_online": False, "last_check_time": 0}
+
+# 检查机器人状态变化并触发通知
+def check_robot_status_change(robot_status):
+    """检查机器人状态变化并触发通知"""
+    global _last_robot_status
+    current_is_online = robot_status.get("is_online", False)
+    last_is_online = _last_robot_status.get("is_online", False)
+    
+    # 获取通知配置
+    config = get_config()
+    notification_config = config.get("Notification", {})
+    enable_notification = notification_config.get("enable", False)
+    pushplus_token = notification_config.get("pushplus-token", "")
+    notify_online = notification_config.get("notify-online", True)
+    notify_offline = notification_config.get("notify-offline", True)
+    online_title = notification_config.get("online-title", "机器人已上线")
+    offline_title = notification_config.get("offline-title", "机器人已掉线")
+    
+    # 状态发生变化
+    if current_is_online != last_is_online:
+        logger.info(f"机器人状态变化: {'上线' if current_is_online else '离线'}")
+        
+        # 如果启用了通知且PushPlus令牌有效
+        if enable_notification and pushplus_token:
+            # 构建通知内容
+            if current_is_online and notify_online:
+                # 机器人上线通知
+                system_info = get_system_info()
+                user_info = robot_status.get("user_info", {})
+                plugins = get_plugins()
+                active_plugins = [p for p in plugins if p.get("enabled", False)]
+                
+                content = f"""
+                ### 服务器信息
+                - 系统: {system_info.get('os', 'Unknown')}
+                - 运行时间: {system_info.get('uptime', 'Unknown')}
+                - CPU使用率: {system_info.get('cpu_usage', 0)}%
+                - 内存使用率: {system_info.get('memory_usage', 0)}%
+                
+                ### 微信账号
+                - 昵称: {user_info.get('nickname', 'Unknown')}
+                - 微信ID: {user_info.get('wxid', 'Unknown')}
+                
+                ### 已激活插件({len(active_plugins)})
+                {', '.join([p.get('name', 'Unknown') for p in active_plugins])}
+                """
+                
+                # 发送上线通知
+                try:
+                    send_notification(online_title, content)
+                    logger.info("已发送机器人上线通知")
+                except Exception as e:
+                    logger.error(f"发送上线通知失败: {e}")
+            
+            elif not current_is_online and notify_offline:
+                # 机器人离线通知
+                system_info = get_system_info()
+                user_info = _last_robot_status.get("user_info", {})
+                last_active_time = _last_robot_status.get("last_active_time", "未知")
+                
+                content = f"""
+                ### 服务器信息
+                - 系统: {system_info.get('os', 'Unknown')}
+                - 运行时间: {system_info.get('uptime', 'Unknown')}
+                
+                ### 最后在线信息
+                - 昵称: {user_info.get('nickname', 'Unknown')}
+                - 微信ID: {user_info.get('wxid', 'Unknown')}
+                - 最后活跃: {last_active_time}
+                """
+                
+                # 发送离线通知
+                try:
+                    send_notification(offline_title, content)
+                    logger.info("已发送机器人离线通知")
+                except Exception as e:
+                    logger.error(f"发送离线通知失败: {e}")
+    
+    # 更新上一次状态
+    _last_robot_status = robot_status
+    _last_robot_status["last_check_time"] = time.time()
+
+# 发送通知
+def send_notification(title, content):
+    """发送推送通知"""
+    config = get_config()
+    notification_config = config.get("Notification", {})
+    token = notification_config.get("pushplus-token", "")
+    
+    if not token:
+        logger.warning("未配置PushPlus令牌，无法发送通知")
+        return False
+    
+    try:
+        import requests
+        url = "http://www.pushplus.plus/send"
+        data = {
+            "token": token,
+            "title": title,
+            "content": content,
+            "template": "markdown"
+        }
+        response = requests.post(url, json=data)
+        result = response.json()
+        
+        if result.get("code") == 200:
+            return True
+        else:
+            logger.warning(f"PushPlus通知发送失败: {result.get('msg', '未知错误')}")
+            return False
+    except Exception as e:
+        logger.error(f"发送通知出错: {e}")
+        return False
+
+# 获取消息统计
+def get_message_stats():
+    """获取消息统计信息"""
+    try:
+        # 假设我们有一个消息数据库，从中获取统计信息
+        # 这里简化为返回固定结构
+        current_time = datetime.now()
+        today = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday = today - timedelta(days=1)
+        
+        # 尝试从数据库获取消息统计
+        try:
+            # 这部分代码应该根据实际的数据库结构来编写
+            # 这里只是一个示例框架
+            import sqlite3
+            conn = sqlite3.connect(str(Path(BASE_DIR) / "database" / "message.db"))
+            cursor = conn.cursor()
+            
+            # 获取今日消息数量
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE timestamp >= ?", (today.timestamp(),))
+            today_count = cursor.fetchone()[0]
+            
+            # 获取昨日消息数量
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE timestamp >= ? AND timestamp < ?", 
+                          (yesterday.timestamp(), today.timestamp()))
+            yesterday_count = cursor.fetchone()[0]
+            
+            # 获取总消息数量
+            cursor.execute("SELECT COUNT(*) FROM messages")
+            total_count = cursor.fetchone()[0]
+            
+            # 获取过去7天的消息数量
+            seven_days_ago = today - timedelta(days=7)
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE timestamp >= ?", (seven_days_ago.timestamp(),))
+            week_count = cursor.fetchone()[0]
+            
+            conn.close()
+            
+            return {
+                "today": today_count,
+                "yesterday": yesterday_count,
+                "total": total_count,
+                "week": week_count,
+                "last_updated": current_time.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+        except Exception as db_error:
+            logger.warning(f"无法从数据库获取消息统计: {db_error}")
+            # 如果数据库查询失败，返回默认值
+            return {
+                "today": 0,
+                "yesterday": 0,
+                "total": 0,
+                "week": 0,
+                "last_updated": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "error": str(db_error)
+            }
+            
+    except Exception as e:
+        logger.error(f"获取消息统计时出错: {e}")
+        return {
+            "today": 0,
+            "yesterday": 0,
+            "total": 0,
+            "week": 0,
+            "error": str(e)
+        }
+
 # 确保必要的目录存在
 def ensure_directories():
     """确保必要的目录结构存在"""
@@ -166,6 +350,36 @@ def is_robot_running():
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     return False, None
+
+# 获取系统信息
+def get_system_info():
+    """获取系统信息"""
+    try:
+        # 获取系统基本信息
+        system_info = {
+            "os": f"{platform.system()} {platform.release()}",
+            "python_version": platform.python_version(),
+            "hostname": platform.node(),
+            "cpu_count": psutil.cpu_count(logical=True),
+            "cpu_usage": round(psutil.cpu_percent(), 2),
+            "memory_total": round(psutil.virtual_memory().total / (1024 * 1024 * 1024), 2),  # GB
+            "memory_used": round(psutil.virtual_memory().used / (1024 * 1024 * 1024), 2),  # GB
+            "memory_usage": round(psutil.virtual_memory().percent, 2),
+            "disk_total": round(psutil.disk_usage('/').total / (1024 * 1024 * 1024), 2),  # GB
+            "disk_used": round(psutil.disk_usage('/').used / (1024 * 1024 * 1024), 2),  # GB
+            "disk_usage": round(psutil.disk_usage('/').percent, 2),
+            "uptime": get_uptime(),
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return system_info
+    except Exception as e:
+        logger.error(f"获取系统信息时出错: {e}")
+        return {
+            "os": f"{platform.system()} {platform.release()}",
+            "error": str(e),
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
 
 # 获取机器人状态
 def get_robot_status():
@@ -1198,6 +1412,18 @@ async def logout_alt(request: Request):
         logger.error(f"登出处理出错: {e}")
         return RedirectResponse(url="/login", status_code=303)
 
+@app.get("/logout3")
+async def logout_another(request: Request):
+    """处理用户登出请求"""
+    try:
+        # 清除会话
+        request.session.clear()
+        logger.info("用户登出成功")
+        return RedirectResponse(url="/login", status_code=303)
+    except Exception as e:
+        logger.error(f"登出处理出错: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
 @app.get("/api/status")
 async def get_status_api(username: str = Depends(get_current_username)):
     """获取系统状态API接口"""
@@ -2197,8 +2423,8 @@ async def authenticate(request: Request, username: str = Form(...), password: st
     try:
         # 从配置文件获取用户名和密码进行验证
         config = get_config()
-        admin_username = config.get("Admin", {}).get("username", "admin")
-        admin_password = config.get("Admin", {}).get("password", "admin")
+        admin_username = config.get("WebInterface", {}).get("username", "admin")
+        admin_password = config.get("WebInterface", {}).get("password", "admin123")
         
         logger.info(f"用户登录尝试: {username}")
         
@@ -2238,6 +2464,18 @@ async def logout(request: Request):
 
 @app.get("/logout2")
 async def logout_alt(request: Request):
+    """处理用户登出请求"""
+    try:
+        # 清除会话
+        request.session.clear()
+        logger.info("用户登出成功")
+        return RedirectResponse(url="/login", status_code=303)
+    except Exception as e:
+        logger.error(f"登出处理出错: {e}")
+        return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/logout3")
+async def logout_another(request: Request):
     """处理用户登出请求"""
     try:
         # 清除会话
