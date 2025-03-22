@@ -1,12 +1,13 @@
 import hashlib
 import string
 from random import choice
-from typing import Union
+from typing import Union, Optional, List, Tuple, Dict, Any
+import time
 
 import aiohttp
 import qrcode
 
-from .base import *
+from .base import WechatAPIClientBase
 from .protect import protector
 from ..errors import *
 
@@ -68,34 +69,63 @@ class LoginMixin(WechatAPIClientBase):
             else:
                 self.error_handler(json_resp)
 
-    async def check_login_uuid(self, uuid: str, device_id: str = "") -> tuple[bool, Union[dict, int]]:
-        """检查登录的UUID状态。
+    async def check_login_uuid(self, uuid, device_id=None) -> tuple:
+        """检查登录UUID状态。
+        
+        检查扫码登录是否成功，或返回二维码过期时间。
 
         Args:
-            uuid (str): 登录的UUID
-            device_id (str, optional): 设备ID. Defaults to "".
+            uuid (str): 登录UUID
+            device_id (str, optional): 设备ID. Defaults to None.
 
         Returns:
-            tuple[bool, Union[dict, int]]: 如果登录成功返回(True, 用户信息)，否则返回(False, 过期时间)
+            tuple: (bool, data) - 第一个元素表示是否登录成功，第二个元素是具体数据或过期时间
 
         Raises:
             根据error_handler处理错误
         """
+        if not uuid or not uuid.strip():
+            # UUID不能为空，返回未登录和较短的过期时间，促使重新生成二维码
+            return False, 30
+            
         async with aiohttp.ClientSession() as session:
             json_param = {"Uuid": uuid}
-            response = await session.post(f'http://{self.ip}:{self.port}/CheckUuid', json=json_param)
-            json_resp = await response.json()
+            
+            try:
+                response = await session.post(f'http://{self.ip}:{self.port}/CheckUuid', json=json_param)
+                json_resp = await response.json()
 
-            if json_resp.get("Success"):
-                if json_resp.get("Data").get("acctSectResp", ""):
-                    self.wxid = json_resp.get("Data").get("acctSectResp").get("userName")
-                    self.nickname = json_resp.get("Data").get("acctSectResp").get("nickName")
-                    protector.update_login_status(device_id=device_id)
-                    return True, json_resp.get("Data")
+                if json_resp.get("Success"):
+                    if json_resp.get("Data").get("acctSectResp", ""):
+                        self.wxid = json_resp.get("Data").get("acctSectResp").get("userName")
+                        self.nickname = json_resp.get("Data").get("acctSectResp").get("nickName")
+                        if device_id:
+                            protector.update_login_status(device_id=device_id)
+                        return True, json_resp.get("Data")
+                    else:
+                        # 二维码有效但未扫码，返回过期时间
+                        return False, json_resp.get("Data").get("expiredTime")
                 else:
-                    return False, json_resp.get("Data").get("expiredTime")
-            else:
-                self.error_handler(json_resp)
+                    # 如果错误是UUID相关的，返回未登录和较短的过期时间，促使重新生成二维码
+                    error_msg = json_resp.get("Message", "").lower()
+                    if ("uuid" in error_msg and ("not found" in error_msg or "错误" in error_msg or "不存在" in error_msg or "过期" in error_msg)):
+                        # 特殊处理UUID相关错误
+                        return False, 30
+                    # 其他错误交给错误处理器
+                    self.error_handler(json_resp)
+            except aiohttp.ClientError as e:
+                # 处理网络连接问题
+                import traceback
+                print(f"检查登录状态时网络错误: {e}")
+                # 网络错误返回未登录和较短的过期时间
+                return False, 30
+            except Exception as e:
+                # 处理其他异常
+                import traceback
+                print(f"检查登录状态时发生异常: {e}")
+                print(traceback.format_exc())
+                # 其他错误返回未登录和较短的过期时间
+                return False, 30
 
     async def log_out(self) -> bool:
         """登出当前账号。

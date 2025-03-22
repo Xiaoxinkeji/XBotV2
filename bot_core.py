@@ -135,6 +135,58 @@ async def bot_core():
                         uuid, url = await bot.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
                         logger.success("获取到登录uuid: {}", uuid)
                         logger.success("获取到登录二维码: {}", url)
+
+                        # 添加登录变量
+                        max_retries = 3  # 最大连续失败重试次数
+                        retry_count = 0
+                        login_timeout = 300  # 总登录超时时间（秒）
+                        start_time = time.time()
+
+                        while True:
+                            try:
+                                # 检查UUID是否需要重新获取
+                                if retry_count >= max_retries or time.time() - start_time > login_timeout:
+                                    logger.warning("登录重试次数过多或超时，重新获取二维码")
+                                    uuid, url = await bot.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
+                                    logger.success("获取到新的登录uuid: {}", uuid)
+                                    logger.success("获取到新的登录二维码: {}", url)
+                                    retry_count = 0
+                                    start_time = time.time()
+                                
+                                # 检查登录状态
+                                stat, data = await bot.check_login_uuid(uuid, device_id=device_id)
+                                
+                                if stat:  # 登录成功
+                                    logger.success("登录成功！")
+                                    break
+                                elif isinstance(data, int) and data <= 30:
+                                    # UUID无效或即将过期，需要重新获取
+                                    logger.warning("UUID无效或即将过期，重新获取二维码")
+                                    uuid, url = await bot.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
+                                    logger.success("获取到新的登录uuid: {}", uuid)
+                                    logger.success("获取到新的登录二维码: {}", url)
+                                    retry_count = 0
+                                    start_time = time.time()
+                                else:
+                                    # 正常等待扫码
+                                    logger.info("等待登录中，过期倒计时：{}", data)
+                                    
+                                # 等待一段时间再检查
+                                await asyncio.sleep(5)
+                                
+                            except Exception as e:
+                                logger.error("登录过程发生错误: {}", str(e))
+                                retry_count += 1
+                                
+                                if "UUid not found" in str(e) or "UUID not found" in str(e):
+                                    logger.warning("UUID不存在，需要重新获取")
+                                    uuid, url = await bot.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
+                                    logger.success("获取到新的登录uuid: {}", uuid)
+                                    logger.success("获取到新的登录二维码: {}", url)
+                                    retry_count = 0
+                                
+                                # 避免频繁重试导致API请求过多
+                                await asyncio.sleep(3)
                 except:
                     # 二维码登录
                     if not device_name:
@@ -151,6 +203,17 @@ async def bot_core():
                         break
                     logger.info("等待登录中，过期倒计时：{}", data)
                     await asyncio.sleep(5)
+                    
+                    # 检查UUID是否过期或无效
+                    if isinstance(data, int) and data <= 30:
+                        logger.warning("UUID即将过期或无效，重新获取二维码")
+                        try:
+                            uuid, url = await bot.get_qr_code(device_id=device_id, device_name=device_name, print_qr=True)
+                            logger.success("获取到新的登录uuid: {}", uuid)
+                            logger.success("获取到新的登录二维码: {}", url)
+                        except Exception as e:
+                            logger.error("重新获取二维码失败: {}", e)
+                            await asyncio.sleep(3)
 
             # 保存登录信息
             robot_stat["wxid"] = bot.wxid
