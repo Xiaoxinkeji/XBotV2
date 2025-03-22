@@ -14,14 +14,14 @@ from .Client.protect import protector
 from .Client.tool import ToolMixin
 
 
-class WechatAPIClient(WechatAPIClientBase, 
-                    LoginMixin, 
+class WechatAPIClient(LoginMixin, 
                     MessageMixin, 
                     UserMixin, 
                     ChatroomMixin, 
                     FriendMixin, 
                     HongBaoMixin,
-                    ToolMixin):
+                    ToolMixin,
+                    WechatAPIClientBase):
     """
     微信API客户端
     整合所有功能模块
