@@ -318,7 +318,7 @@ async function sendPushNotification(title, content, template = 'html') {
         };
         
         // 发送请求到PushPlus
-        const pushResponse = await fetch('http://www.pushplus.plus/send', {
+        const pushResponse = await fetch('https://www.pushplus.plus/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

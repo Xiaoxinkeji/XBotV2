@@ -5,6 +5,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.middleware.sessions import SessionMiddleware
 
+# 确保Body导入可用
+from fastapi import Body as FastAPIBody
+
 import json
 import logging
 import platform
@@ -25,6 +28,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
+# 导入统一的配置工具
+from utils.config_utils import load_toml_config, save_toml_config
+
 # 配置日志
 logger = logging.getLogger("web")
 logging.basicConfig(
@@ -39,6 +45,27 @@ logging.basicConfig(
 # 项目根目录
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 logger.info(f"项目根目录: {BASE_DIR}")
+
+# 模板和静态文件目录
+templates_path = Path(BASE_DIR) / "web" / "templates"
+if not templates_path.exists():
+    logger.warning(f"找不到web/templates目录: {templates_path}")
+    templates_path = Path(BASE_DIR) / "templates"
+    if not templates_path.exists():
+        logger.error(f"找不到templates目录，将创建一个空目录: {templates_path}")
+        os.makedirs(templates_path, exist_ok=True)
+logger.info(f"使用模板目录: {templates_path}")
+templates = Jinja2Templates(directory=str(templates_path))
+
+static_path = Path(BASE_DIR) / "web" / "static"
+if not static_path.exists():
+    logger.warning(f"找不到web/static目录: {static_path}")
+    static_path = Path(BASE_DIR) / "static"
+    if not static_path.exists():
+        logger.error(f"找不到static目录，将创建一个空目录: {static_path}")
+        os.makedirs(static_path, exist_ok=True)
+logger.info(f"使用静态文件目录: {static_path}")
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # 获取系统运行时间的辅助函数
 def get_uptime():
@@ -65,25 +92,6 @@ app.add_middleware(
     session_cookie="xbotv2_session",
     max_age=3600  # 会话有效期1小时
 )
-
-# 配置模板和静态文件
-templates_path = Path(BASE_DIR) / "web" / "templates"
-if not templates_path.exists():
-    templates_path = Path(BASE_DIR) / "templates"
-    if not templates_path.exists():
-        logger.error(f"找不到模板目录: {templates_path}")
-        os.makedirs(templates_path, exist_ok=True)
-logger.info(f"使用模板目录: {templates_path}")
-templates = Jinja2Templates(directory=str(templates_path))
-
-static_path = Path(BASE_DIR) / "web" / "static"
-if not static_path.exists():
-    static_path = Path(BASE_DIR) / "static"
-    if not static_path.exists():
-        logger.error(f"找不到静态文件目录: {static_path}")
-        os.makedirs(static_path, exist_ok=True)
-logger.info(f"使用静态文件目录: {static_path}")
-app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # 配置相关函数
 def get_config():
@@ -1387,7 +1395,7 @@ async def get_plugin_config_api(plugin_id: str, username: str = Depends(get_curr
 @app.post("/api/plugins/{plugin_id}/config")
 async def save_plugin_config(
     plugin_id: str, 
-    config_data: Dict[str, Any] = Body(...),
+    config_data: Dict[str, Any] = FastAPIBody(...),
     username: str = Depends(get_current_username)
 ):
     plugin_config_path = PROJECT_ROOT / "plugins" / plugin_id / "config.toml"
@@ -1451,7 +1459,7 @@ async def install_plugin_api(
 @app.post("/api/plugins/{plugin_id}/delete")
 async def delete_plugin_api(
     plugin_id: str,
-    delete_files: bool = Body(False),
+    delete_files: bool = FastAPIBody(False),
     username: str = Depends(get_current_username)
 ):
     return delete_plugin(plugin_id, delete_files)
@@ -1694,11 +1702,12 @@ async def check_login_status(uuid: str, device_id: Optional[str] = None, usernam
         return {"success": False, "message": f"检查登录状态失败: {str(e)}"}
 
 @app.post("/api/settings/save")
-async def save_settings(config_data: Dict[str, Any] = Body(...), username: str = Depends(get_current_username)):
+async def save_settings(config_data: Dict[str, Any] = FastAPIBody(...), username: str = Depends(get_current_username)):
     try:
         # 读取现有配置
-        with open(config_path, "rb") as f:
-            current_config = tomli.load(f)
+        current_config = load_toml_config(config_path)
+        if not current_config:
+            return {"success": False, "message": "读取配置文件失败"}
         
         # 更新配置
         for section, settings in config_data.items():
@@ -1713,11 +1722,11 @@ async def save_settings(config_data: Dict[str, Any] = Body(...), username: str =
                 # 处理顶级配置项
                 current_config[section] = settings
         
-        # 保存配置 - 使用toml库而不是tomllib
-        with open(config_path, "w", encoding="utf-8") as f:
-            toml.dump(current_config, f)
-        
-        return {"success": True, "message": "设置已保存"}
+        # 保存配置
+        if save_toml_config(config_path, current_config):
+            return {"success": True, "message": "设置已保存"}
+        else:
+            return {"success": False, "message": "保存配置文件失败"}
     except Exception as e:
         logger.error(f"保存设置失败: {e}")
         logger.error(traceback.format_exc())
@@ -1993,9 +2002,9 @@ async def get_repositories_api(username: str = Depends(get_current_username)):
 
 @app.post("/api/plugin_marketplace/repositories")
 async def add_repository_api(
-    url: str = Body(...),
-    name: str = Body(...),
-    description: str = Body(""),
+    url: str = FastAPIBody(...),
+    name: str = FastAPIBody(...),
+    description: str = FastAPIBody(""),
     username: str = Depends(get_current_username)
 ):
     """添加插件仓库"""
@@ -2031,7 +2040,7 @@ async def remove_repository_api(url: str, username: str = Depends(get_current_us
 @app.put("/api/plugin_marketplace/repositories/{url:path}")
 async def update_repository_status_api(
     url: str, 
-    enabled: bool = Body(...),
+    enabled: bool = FastAPIBody(...),
     username: str = Depends(get_current_username)
 ):
     """更新仓库状态"""
@@ -2051,8 +2060,8 @@ async def update_repository_status_api(
 @app.post("/api/plugin_marketplace/rating/{plugin_id}")
 async def add_plugin_rating_api(
     plugin_id: str,
-    rating: int = Body(...),
-    comment: str = Body(""),
+    rating: int = FastAPIBody(...),
+    comment: str = FastAPIBody(""),
     username: str = Depends(get_current_username)
 ):
     """为插件添加评分和评论"""

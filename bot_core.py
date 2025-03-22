@@ -15,6 +15,7 @@ from database.messsagDB import MessageDB
 from utils.decorators import scheduler
 from utils.plugin_manager import plugin_manager
 from utils.xybot import XYBot
+from utils.config_utils import load_toml_config
 
 
 async def bot_core():
@@ -23,8 +24,10 @@ async def bot_core():
 
     # 读取主设置
     config_path = script_dir / "main_config.toml"
-    with open(config_path, "rb") as f:
-        main_config = tomllib.load(f)
+    main_config = load_toml_config(config_path)
+    if not main_config:
+        logger.error("读取主设置失败")
+        return
 
     logger.success("读取主设置成功")
 
