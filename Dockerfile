@@ -24,15 +24,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 安装gunicorn和eventlet
 RUN pip install --no-cache-dir gunicorn eventlet
 
+# 复制启动脚本并赋予执行权限
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 # 复制应用代码
 COPY . .
 
-# 创建启动脚本
-RUN echo '#!/bin/bash\n\
-redis-server /etc/redis/redis.conf --daemonize yes\n\
-python app.py' > /app/start.sh \
-    && chmod +x /app/start.sh
-
 # 设置启动命令
 CMD ["/app/start.sh"]
-
